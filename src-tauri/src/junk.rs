@@ -95,6 +95,14 @@ fn targets() -> Vec<Target> {
     shaders.extend(join(&local, "NVIDIA/GLCache"));
     shaders.extend(join(&local, "AMD/DxCache"));
 
+    let mut spotify = join(&local, "Spotify/Storage");
+    spotify.extend(join(&local, "Spotify/Data"));
+
+    let mut discord = vec![];
+    for sub in ["Cache", "Code Cache", "GPUCache"] {
+        discord.extend(join(&roaming, &format!("discord/{sub}")));
+    }
+
     let mut adobe = join(&roaming, "Adobe/Common/Media Cache Files");
     adobe.extend(join(&roaming, "Adobe/Common/Peak Files"));
 
@@ -130,6 +138,16 @@ fn targets() -> Vec<Target> {
             needs_admin: true,
         },
         Target {
+            id: "delivery_optimization",
+            group: "system",
+            name: "Optimisation de la distribution",
+            detail: "Mises à jour Windows partagées avec d'autres PC",
+            paths: join(&windir, "ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache"),
+            min_age: Duration::ZERO,
+            processes: &[],
+            needs_admin: true,
+        },
+        Target {
             id: "crash_reports",
             group: "system",
             name: "Rapports d'erreur",
@@ -151,12 +169,52 @@ fn targets() -> Vec<Target> {
         },
         Target {
             id: "adobe_media_cache",
-            group: "system",
+            group: "apps",
             name: "Cache média Adobe",
             detail: "Premiere Pro et After Effects",
             paths: adobe,
             min_age: Duration::ZERO,
             processes: &[("Adobe Premiere Pro.exe", "Premiere Pro"), ("AfterFX.exe", "After Effects"), ("Adobe Media Encoder.exe", "Media Encoder")],
+            needs_admin: false,
+        },
+        Target {
+            id: "spotify",
+            group: "apps",
+            name: "Spotify",
+            detail: "Musique mise en cache : elle se retélécharge quand tu l'écoutes",
+            paths: spotify,
+            min_age: Duration::ZERO,
+            processes: &[("Spotify.exe", "Spotify")],
+            needs_admin: false,
+        },
+        Target {
+            id: "discord",
+            group: "apps",
+            name: "Discord",
+            detail: "Images et vidéos déjà vues",
+            paths: discord,
+            min_age: Duration::ZERO,
+            processes: &[("Discord.exe", "Discord")],
+            needs_admin: false,
+        },
+        Target {
+            id: "steam",
+            group: "apps",
+            name: "Steam",
+            detail: "Cache des pages du magasin (tes jeux ne bougent pas)",
+            paths: join(&local, "Steam/htmlcache"),
+            min_age: Duration::ZERO,
+            processes: &[("steam.exe", "Steam")],
+            needs_admin: false,
+        },
+        Target {
+            id: "npm_cache",
+            group: "apps",
+            name: "Cache npm",
+            detail: "Paquets JavaScript téléchargés, retéléchargés au besoin",
+            paths: join(&local, "npm-cache"),
+            min_age: Duration::ZERO,
+            processes: &[],
             needs_admin: false,
         },
         Target {

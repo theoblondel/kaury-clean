@@ -69,7 +69,10 @@ function show(view) {
   $$("nav button").forEach((b) => b.setAttribute("aria-current", String(b.dataset.view === view)));
   $$(".view").forEach((s) => (s.hidden = s.id !== "v-" + view));
   if (view === "startup" && !startupLoaded) loadStartup();
+  viewLoaders[view]?.();
 }
+// Les modules de modules.js s'inscrivent ici pour se charger à la première ouverture.
+const viewLoaders = {};
 
 // ---------- Disque ----------
 async function refreshDisk() {
@@ -114,7 +117,7 @@ const orbVal = (big, small) => ($("#orbVal").innerHTML = `${esc(big)}<small>${es
 
 // ---------- Fichiers inutiles (analyse intelligente + 3 modules) ----------
 let junk = null; // dernier résultat de scan_junk
-const GROUPS = { system: "Fichiers système", browsers: "Navigateurs", trash: "Corbeille" };
+const GROUPS = { system: "Fichiers système", apps: "Applications", browsers: "Navigateurs", trash: "Corbeille" };
 let scanState = "idle";
 
 $("#scanBtn").addEventListener("click", () => {
@@ -274,19 +277,34 @@ function renderGroupView(g) {
   update();
 }
 
+// Affiche « recherche en cours » avec un bouton Arrêter. Renvoie une fonction d'affichage d'erreur.
+function startSearch(box, label) {
+  box.innerHTML = `<div class="empty"><div class="spinner"></div>${esc(label)}<span class="progress"></span><button class="cta ghost" data-stop>Arrêter</button></div>`;
+  progressEl = $(".progress", box);
+  $("[data-stop]", box).addEventListener("click", (e) => {
+    e.currentTarget.disabled = true;
+    invoke("cancel_search");
+  });
+}
+function searchFailed(box, e) {
+  progressEl = null;
+  box.innerHTML = String(e).includes("arrêtée")
+    ? `<div class="empty">Recherche arrêtée.</div>`
+    : `<div class="empty">La recherche a échoué : ${esc(e)}</div>`;
+}
+
 // ---------- Gros fichiers ----------
 $("#largeBtn").addEventListener("click", loadLarge);
 async function loadLarge() {
   const box = $("#largeList");
-  box.innerHTML = `<div class="empty"><div class="spinner"></div>Recherche dans tes dossiers…<span class="progress"></span></div>`;
-  progressEl = $(".progress", box);
+  startSearch(box, "Recherche dans tes dossiers…");
   $("#largeBtn").disabled = true;
   try {
     const files = await invoke("find_large_files", { minMb: Number($("#largeMin").value) });
     progressEl = null;
     renderFileList(box, files.length ? [{ files }] : [], { preselect: false, onDone: loadLarge });
   } catch (e) {
-    box.innerHTML = `<div class="empty">La recherche a échoué : ${esc(e)}</div>`;
+    searchFailed(box, e);
   }
   $("#largeBtn").disabled = false;
 }
@@ -295,15 +313,14 @@ async function loadLarge() {
 $("#dupesBtn").addEventListener("click", loadDupes);
 async function loadDupes() {
   const box = $("#dupesList");
-  box.innerHTML = `<div class="empty"><div class="spinner"></div>Comparaison des fichiers… Ça peut prendre une minute.<span class="progress"></span></div>`;
-  progressEl = $(".progress", box);
+  startSearch(box, "Comparaison des fichiers… Ça peut prendre une minute.");
   $("#dupesBtn").disabled = true;
   try {
     const groups = await invoke("find_duplicates");
     progressEl = null;
     renderFileList(box, groups, { preselect: true, onDone: loadDupes });
   } catch (e) {
-    box.innerHTML = `<div class="empty">La recherche a échoué : ${esc(e)}</div>`;
+    searchFailed(box, e);
   }
   $("#dupesBtn").disabled = false;
 }
@@ -416,7 +433,10 @@ document.addEventListener("contextmenu", (e) => {
 })();
 
 // ---------- Mode démo (ouverture dans un navigateur, sans Tauri) ----------
+const demoState = { undo: false };
 function demoInvoke(cmd, args) {
+  if (cmd === "organize_apply") demoState.undo = true;
+  if (cmd === "organize_undo") demoState.undo = false;
   const wait = (ms, v) => new Promise((r) => setTimeout(() => r(v), ms));
   const GB = 1024 ** 3, MB = 1024 ** 2, now = Date.now() / 1000, day = 86400;
   const f = (path, bytes, daysOld) => {
@@ -432,7 +452,9 @@ function demoInvoke(cmd, args) {
       { id: "user_temp", group: "system", name: "Fichiers temporaires", detail: "Dossier Temp de ton compte", bytes: 3.3 * GB, files: 18422, running: null },
       { id: "windows_update", group: "system", name: "Téléchargements Windows Update", detail: "Mises à jour déjà installées", bytes: 2.1 * GB, files: 311, running: null, needs_admin: true },
       { id: "crash_reports", group: "system", name: "Rapports d'erreur", detail: "Rapports de plantage et fichiers dump", bytes: 268 * MB, files: 47, running: null },
-      { id: "adobe_media_cache", group: "system", name: "Cache média Adobe", detail: "Premiere Pro et After Effects", bytes: 1.8 * GB, files: 902, running: null },
+      { id: "adobe_media_cache", group: "apps", name: "Cache média Adobe", detail: "Premiere Pro et After Effects", bytes: 1.8 * GB, files: 902, running: null },
+      { id: "spotify", group: "apps", name: "Spotify", detail: "Musique mise en cache : elle se retélécharge quand tu l'écoutes", bytes: 3.4 * GB, files: 812, running: "Spotify" },
+      { id: "discord", group: "apps", name: "Discord", detail: "Images et vidéos déjà vues", bytes: 640 * MB, files: 4211, running: null },
       { id: "chrome", group: "browsers", name: "Google Chrome", detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas", bytes: 1.2 * GB, files: 6230, running: "Chrome" },
       { id: "edge", group: "browsers", name: "Microsoft Edge", detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas", bytes: 486 * MB, files: 2104, running: null },
       { id: "recycle_bin", group: "trash", name: "Corbeille", detail: "Tous les disques", bytes: 1.25 * GB, files: 251, running: null },
@@ -458,6 +480,54 @@ function demoInvoke(cmd, args) {
       { id: "hklm|SecurityHealth", name: "SecurityHealth", command: "%windir%\\system32\\SecurityHealthSystray.exe", scope: "machine", enabled: true },
     ]);
     case "set_startup_app": return wait(150, null);
+    case "cancel_search": return wait(10, null);
+    case "find_old_downloads": return wait(900, [
+      f("C:\\Users\\Theo\\Downloads\\Windows11_23H2.iso", 6.2 * GB, 400),
+      f("C:\\Users\\Theo\\Downloads\\Setup_DaVinci_Resolve.exe", 2.9 * GB, 380),
+      f("C:\\Users\\Theo\\Downloads\\Mockups_packaging.zip", 820 * MB, 210),
+      f("C:\\Users\\Theo\\Downloads\\Facture_imprimeur_mars.pdf", 2 * MB, 190),
+    ].filter((x) => (now - x.modified) / day >= args.minDays));
+    case "organize_plan": return wait(150, args.folder === "desktop" ? [
+      { category: "Images", count: 23, bytes: 180 * MB, examples: ["capture-2026-09-12.png", "moodboard.jpg", "ref_lac.png"] },
+      { category: "Design", count: 6, bytes: 1.4 * GB, examples: ["Blondel_Display_sources.psd", "logo_v4.ai"] },
+    ] : [
+      { category: "Images", count: 48, bytes: 620 * MB, examples: ["IMG_4521.jpg", "moodboard.png", "photo_client.heic"] },
+      { category: "Documents", count: 31, bytes: 84 * MB, examples: ["Brief_client_Mercier.pdf", "Devis_2026.xlsx", "contrat.docx"] },
+      { category: "Design", count: 12, bytes: 2.1 * GB, examples: ["Logo_Kaury_final_FINAL.ai", "mockup.psd"] },
+      { category: "Installeurs", count: 9, bytes: 4.3 * GB, examples: ["Setup_DaVinci_Resolve.exe", "Figma-Setup.exe"] },
+      { category: "Archives", count: 7, bytes: 5.1 * GB, examples: ["Shooting_Vevey_RAW.zip"] },
+    ]);
+    case "organize_apply": return wait(700, { moved: 107, errors: [] });
+    case "organize_can_undo": return wait(20, demoState.undo);
+    case "organize_undo": return wait(500, { moved: 107, errors: [] });
+    case "list_installed_apps": return wait(300, [
+      { id: "hklm|Adobe", name: "Adobe Creative Cloud", publisher: "Adobe Inc.", version: "6.4.0", bytes: 1.1 * GB, installed: "20250314" },
+      { id: "hklm|Blender", name: "Blender", publisher: "Blender Foundation", version: "4.2.1", bytes: 780 * MB, installed: "20240802" },
+      { id: "hkcu|Discord", name: "Discord", publisher: "Discord Inc.", version: "1.0.9160", bytes: 410 * MB, installed: "20260101" },
+      { id: "hklm|Figma", name: "Figma", publisher: "Figma, Inc.", version: "125.4", bytes: 290 * MB, installed: "20260812" },
+      { id: "hklm|McAfee", name: "McAfee WebAdvisor", publisher: "McAfee, LLC", version: "4.1.1", bytes: 48 * MB, installed: "20230519" },
+      { id: "hklm|Steam", name: "Steam", publisher: "Valve Corporation", version: "2.10.91", bytes: 0, installed: "" },
+    ]);
+    case "uninstall_app": return Promise.reject("Mode démo : le désinstalleur s'ouvre seulement dans l'appli");
+    case "memory_status": return wait(250, { total: 16 * GB, used: 13.1 * GB, apps: [
+      { exe: "chrome.exe", name: "Chrome", bytes: 3.9 * GB, processes: 38 },
+      { exe: "Adobe Premiere Pro.exe", name: "Adobe Premiere Pro", bytes: 2.6 * GB, processes: 1 },
+      { exe: "Discord.exe", name: "Discord", bytes: 780 * MB, processes: 6 },
+      { exe: "Spotify.exe", name: "Spotify", bytes: 420 * MB, processes: 5 },
+      { exe: "Figma.exe", name: "Figma", bytes: 390 * MB, processes: 4 },
+    ] });
+    case "close_app": return wait(800, args.force || args.exe !== "Adobe Premiere Pro.exe");
+    case "list_maintenance": return wait(50, [
+      { id: "repair_windows", name: "Réparer Windows", detail: "Vérifie et répare les fichiers système abîmés (DISM puis SFC). À faire si Windows plante, affiche des erreurs bizarres ou si des applis ne s'ouvrent plus. Il faut Internet.", duration: "15 à 30 min", needs_admin: true },
+      { id: "component_cleanup", name: "Supprimer les anciennes versions de Windows", detail: "Retire les composants remplacés par les mises à jour. Libère souvent plusieurs Go.", duration: "5 à 15 min", needs_admin: true },
+      { id: "optimize_drive", name: "Optimiser le disque", detail: "Envoie TRIM à un SSD ou défragmente un disque dur, selon ton matériel. Garde le disque rapide.", duration: "1 à 10 min", needs_admin: true },
+      { id: "check_disk", name: "Vérifier le disque", detail: "Cherche les erreurs du système de fichiers sans redémarrer.", duration: "2 à 10 min", needs_admin: true },
+      { id: "flush_dns", name: "Vider le cache DNS", detail: "Règle les sites qui ne chargent plus ou qui affichent une ancienne version.", duration: "quelques secondes", needs_admin: false },
+      { id: "restart_explorer", name: "Redémarrer l'Explorateur", detail: "Débloque la barre des tâches, le menu Démarrer ou le Bureau quand ils sont figés.", duration: "quelques secondes", needs_admin: false },
+      { id: "refresh_icons", name: "Rafraîchir les icônes", detail: "Corrige les icônes blanches ou mauvaises sur le Bureau et dans l'Explorateur.", duration: "quelques secondes", needs_admin: false },
+      { id: "reset_store", name: "Réparer le Microsoft Store", detail: "Vide le cache du Store quand les téléchargements ou les mises à jour d'applis bloquent.", duration: "quelques secondes", needs_admin: false },
+    ]);
+    case "run_maintenance": return wait(1500, { ok: true, message: "Cache DNS vidé." });
     default: return Promise.reject("Commande inconnue : " + cmd);
   }
 }

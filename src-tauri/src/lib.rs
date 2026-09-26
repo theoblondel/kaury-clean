@@ -2,7 +2,14 @@ mod elevation;
 mod files;
 mod fsutil;
 mod junk;
+mod maintenance;
+mod memory;
+mod organize;
 mod startup;
+mod uninstall;
+
+use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 
 use serde::Serialize;
 use tauri::async_runtime::spawn_blocking;
@@ -72,14 +79,35 @@ async fn clean_junk(app: AppHandle, ids: Vec<String>) -> Result<junk::CleanRepor
     blocking(move || junk::clean(&ids, &reporter(app))).await
 }
 
+/// Lance une recherche qu'on peut arrêter avec `cancel_search`.
+async fn search<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
+    files::CANCEL.store(false, Ordering::Relaxed);
+    let result = blocking(f).await?;
+    if files::cancelled() {
+        return Err("Recherche arrêtée".into());
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+fn cancel_search() {
+    files::CANCEL.store(true, Ordering::Relaxed);
+}
+
 #[tauri::command]
 async fn find_large_files(app: AppHandle, min_mb: u64) -> Result<Vec<files::FileEntry>, String> {
-    blocking(move || files::large_files(&files::user_roots(), min_mb * 1024 * 1024, 60, &reporter(app))).await
+    search(move || files::large_files(&files::user_roots(), min_mb * 1024 * 1024, 60, &reporter(app))).await
 }
 
 #[tauri::command]
 async fn find_duplicates(app: AppHandle) -> Result<Vec<files::DuplicateGroup>, String> {
-    blocking(move || files::duplicates(&files::user_roots(), 100 * 1024, &reporter(app))).await
+    search(move || files::duplicates(&files::user_roots(), 100 * 1024, &reporter(app))).await
+}
+
+#[tauri::command]
+async fn find_old_downloads(app: AppHandle, min_days: u64) -> Result<Vec<files::FileEntry>, String> {
+    let downloads = dirs::download_dir().ok_or("Dossier Téléchargements introuvable")?;
+    search(move || files::old_downloads(&downloads, min_days, &reporter(app))).await
 }
 
 #[tauri::command]
@@ -102,6 +130,79 @@ fn set_startup_app(id: String, enabled: bool) -> Result<(), String> {
     startup::set(&id, enabled)
 }
 
+// ---------- Ranger mes fichiers ----------
+
+/// Seuls le Bureau et les Téléchargements peuvent être rangés.
+fn organize_dir(folder: &str) -> Result<PathBuf, String> {
+    match folder {
+        "downloads" => dirs::download_dir(),
+        "desktop" => dirs::desktop_dir(),
+        _ => None,
+    }
+    .ok_or_else(|| "Dossier introuvable".into())
+}
+
+fn undo_log() -> PathBuf {
+    dirs::data_local_dir().unwrap_or_else(std::env::temp_dir).join("Kaury Clean").join("dernier-rangement.json")
+}
+
+#[tauri::command]
+fn organize_plan(folder: String) -> Result<Vec<organize::PlanGroup>, String> {
+    Ok(organize::plan(&organize_dir(&folder)?))
+}
+
+#[tauri::command]
+async fn organize_apply(folder: String) -> Result<organize::OrganizeReport, String> {
+    let dir = organize_dir(&folder)?;
+    blocking(move || organize::apply(&dir, &undo_log())).await
+}
+
+#[tauri::command]
+fn organize_can_undo() -> bool {
+    organize::can_undo(&undo_log())
+}
+
+#[tauri::command]
+async fn organize_undo() -> Result<organize::OrganizeReport, String> {
+    blocking(|| organize::undo(&undo_log())).await
+}
+
+// ---------- Applis installées ----------
+
+#[tauri::command]
+async fn list_installed_apps() -> Result<Vec<uninstall::InstalledApp>, String> {
+    blocking(uninstall::list).await
+}
+
+#[tauri::command]
+fn uninstall_app(id: String) -> Result<(), String> {
+    uninstall::uninstall(&id)
+}
+
+// ---------- Mémoire ----------
+
+#[tauri::command]
+async fn memory_status() -> Result<memory::MemoryStatus, String> {
+    blocking(memory::status).await
+}
+
+#[tauri::command]
+async fn close_app(exe: String, force: bool) -> Result<bool, String> {
+    blocking(move || memory::close(&exe, force)).await?
+}
+
+// ---------- Maintenance ----------
+
+#[tauri::command]
+fn list_maintenance() -> Vec<maintenance::TaskInfo> {
+    maintenance::list()
+}
+
+#[tauri::command]
+async fn run_maintenance(app: AppHandle, id: String) -> Result<maintenance::TaskResult, String> {
+    blocking(move || maintenance::run(&id, &reporter(app))).await?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -113,6 +214,18 @@ pub fn run() {
             clean_junk,
             find_large_files,
             find_duplicates,
+            find_old_downloads,
+            cancel_search,
+            organize_plan,
+            organize_apply,
+            organize_can_undo,
+            organize_undo,
+            list_installed_apps,
+            uninstall_app,
+            memory_status,
+            close_app,
+            list_maintenance,
+            run_maintenance,
             move_to_trash,
             reveal_file,
             list_startup_apps,

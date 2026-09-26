@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="fonts/fonts.css">
   <link rel="stylesheet" href="styles.css">
   <script src="main.js" defer></script>
+  <script src="modules.js" defer></script>
 </head>
 <body>
   <div class="app">
@@ -18,6 +19,7 @@
       <div class="group">
         <h4>Nettoyage</h4>
         <button data-view="system"><span class="ic">&#x2699;</span>Fichiers système<span class="size" data-size="system"></span></button>
+        <button data-view="apps"><span class="ic">&#x25A6;</span>Applications<span class="size" data-size="apps"></span></button>
         <button data-view="browsers"><span class="ic">&#x25CE;</span>Navigateurs<span class="size" data-size="browsers"></span></button>
         <button data-view="trash"><span class="ic">&#x21BA;</span>Corbeille<span class="size" data-size="trash"></span></button>
       </div>
@@ -25,10 +27,18 @@
         <h4>Espace disque</h4>
         <button data-view="large"><span class="ic">&#x25A3;</span>Gros fichiers</button>
         <button data-view="dupes"><span class="ic">&#x29C9;</span>Doublons</button>
+        <button data-view="olddl"><span class="ic">&#x2193;</span>Vieux téléchargements</button>
+        <button data-view="organize"><span class="ic">&#x25A4;</span>Ranger mes fichiers</button>
       </div>
       <div class="group">
         <h4>Vitesse</h4>
+        <button data-view="memory"><span class="ic">&#x2261;</span>Mémoire vive</button>
         <button data-view="startup"><span class="ic">&#x26A1;</span>Démarrage</button>
+        <button data-view="uninstall"><span class="ic">&#x2715;</span>Désinstaller</button>
+      </div>
+      <div class="group">
+        <h4>Réparation</h4>
+        <button data-view="maintenance"><span class="ic">&#x2692;</span>Maintenance</button>
       </div>
       <div class="disk" id="disk" hidden>
         <span id="diskName">Disque local</span>
@@ -53,6 +63,8 @@
 
       <section class="view" id="v-system" hidden data-group="system"
         data-title="Fichiers système" data-desc="Fichiers temporaires, rapports d'erreur et caches que Windows et tes logiciels recréent tout seuls. Les fichiers temporaires de moins de 24 h sont gardés."></section>
+      <section class="view" id="v-apps" hidden data-group="apps"
+        data-title="Applications" data-desc="Les caches de tes applis : musique Spotify, images Discord, cache média Adobe… Tout se recrée au besoin, rien de ton travail n'est touché."></section>
       <section class="view" id="v-browsers" hidden data-group="browsers"
         data-title="Navigateurs" data-desc="Seulement le cache. Tes mots de passe, favoris, historique et sessions ne sont pas touchés."></section>
       <section class="view" id="v-trash" hidden data-group="trash"
@@ -79,11 +91,63 @@
         <div id="dupesList"></div>
       </section>
 
+      <section class="view" id="v-olddl" hidden>
+        <div class="head">
+          <div><h2>Vieux téléchargements</h2><p>Les fichiers de ton dossier Téléchargements que tu n'as pas ouverts ni modifiés depuis longtemps : installeurs déjà utilisés, archives, PDF oubliés. Rien n'est coché d'avance, et tout part à la corbeille.</p></div>
+          <div class="tools">
+            <label class="select">Plus vieux que
+              <select id="olddlMin"><option value="90">3 mois</option><option value="180" selected>6 mois</option><option value="365">1 an</option></select>
+            </label>
+            <button class="cta small" id="olddlBtn">Rechercher</button>
+          </div>
+        </div>
+        <div id="olddlList"></div>
+      </section>
+
+      <section class="view" id="v-organize" hidden>
+        <div class="head">
+          <div><h2>Ranger mes fichiers</h2><p>Chaque fichier va dans un sous-dossier selon son type : Images, Documents, Design, Installeurs… Les dossiers existants et les raccourcis ne bougent pas, aucun fichier n'est écrasé, et tu peux tout annuler.</p></div>
+          <div class="seg" role="radiogroup" aria-label="Dossier à ranger">
+            <button role="radio" aria-checked="true" data-folder="downloads">Téléchargements</button>
+            <button role="radio" aria-checked="false" data-folder="desktop">Bureau</button>
+          </div>
+        </div>
+        <div id="organizeBody"></div>
+      </section>
+
+      <section class="view" id="v-memory" hidden>
+        <div class="head">
+          <div><h2>Mémoire vive</h2><p>Quand le PC rame, c'est souvent qu'une appli prend trop de mémoire. Ferme celles dont tu n'as pas besoin : Windows récupère la mémoire tout de suite. Pense à enregistrer ton travail avant.</p></div>
+          <div class="tools"><button class="cta ghost" id="memoryBtn">Actualiser</button></div>
+        </div>
+        <div id="memoryBody"></div>
+      </section>
+
       <section class="view" id="v-startup" hidden>
         <div class="head">
           <div><h2>Démarrage</h2><p>Les applis qui se lancent avec Windows. Désactive celles dont tu n'as pas besoin dès l'allumage : ton PC démarre plus vite, et tu peux les réactiver quand tu veux.</p></div>
         </div>
         <div id="startupList"></div>
+      </section>
+
+      <section class="view" id="v-uninstall" hidden>
+        <div class="head">
+          <div><h2>Désinstaller</h2><p>Toutes les applis installées, avec la place qu'elles prennent. Kaury Clean lance le désinstalleur officiel de chaque appli, comme les Paramètres de Windows.</p></div>
+          <div class="tools">
+            <input class="search" id="uninstallSearch" type="search" placeholder="Rechercher une appli" aria-label="Rechercher une appli">
+            <label class="select">Trier par
+              <select id="uninstallSort"><option value="bytes">Taille</option><option value="name">Nom</option><option value="installed">Date</option></select>
+            </label>
+          </div>
+        </div>
+        <div id="uninstallBody"></div>
+      </section>
+
+      <section class="view" id="v-maintenance" hidden>
+        <div class="head">
+          <div><h2>Maintenance</h2><p>Les outils de réparation intégrés à Windows, lancés pour toi avec les bonnes options. Une tâche à la fois.</p></div>
+        </div>
+        <div id="maintenanceBody"></div>
       </section>
 
       <div class="toast" id="toast" role="status"></div>

@@ -6,6 +6,7 @@ use std::cmp::Reverse;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
 use walkdir::{DirEntry, WalkDir};
@@ -33,6 +34,27 @@ pub struct TrashReport {
     moved: u64,
     bytes: u64,
     errors: Vec<String>,
+}
+
+/// Passe à `true` quand tu cliques sur « Arrêter » : les recherches en cours s'arrêtent au fichier suivant.
+pub static CANCEL: AtomicBool = AtomicBool::new(false);
+
+pub fn cancelled() -> bool {
+    CANCEL.load(Ordering::Relaxed)
+}
+
+/// Nom affiché d'un dossier perso (Windows garde les noms anglais sur le disque).
+fn display_name(root: &Path) -> String {
+    let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    match name.as_str() {
+        "Desktop" => "Bureau".into(),
+        "Downloads" => "Téléchargements".into(),
+        "Documents" => "Documents".into(),
+        "Videos" => "Vidéos".into(),
+        "Pictures" => "Images".into(),
+        "Music" => "Musique".into(),
+        _ => name,
+    }
 }
 
 /// Dossiers perso analysés. Les dossiers système et les applis ne sont jamais parcourus.
@@ -70,10 +92,11 @@ fn walk_files<'a>(
     progress: &'a dyn Fn(&str),
 ) -> impl Iterator<Item = (PathBuf, std::fs::Metadata)> + 'a {
     roots.iter().flat_map(move |root| {
-        progress(&root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
+        progress(&display_name(root));
         WalkDir::new(root)
             .into_iter()
             .filter_entry(|e| e.depth() == 0 || !is_hidden(e))
+            .take_while(|_| !cancelled())
             .flatten()
             .filter(|e| e.file_type().is_file())
             .filter_map(|e| e.metadata().ok().map(|m| (e.into_path(), m)))
@@ -107,6 +130,22 @@ pub fn large_files(roots: &[PathBuf], min_bytes: u64, limit: usize, progress: &d
     out
 }
 
+/// Les fichiers de Téléchargements pas modifiés depuis `min_days` jours, du plus lourd au plus léger.
+pub fn old_downloads(downloads: &Path, min_days: u64, progress: &dyn Fn(&str)) -> Vec<FileEntry> {
+    let limit = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs().saturating_sub(min_days * 86_400))
+        .unwrap_or(0);
+    let roots = [downloads.to_path_buf()];
+    let mut out: Vec<FileEntry> = walk_files(&roots, progress)
+        .map(|(p, m)| entry(&p, &m))
+        .filter(|e| e.modified > 0 && e.modified < limit)
+        .collect();
+    out.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+    out.truncate(300);
+    out
+}
+
 fn hash_file(path: &Path, max_bytes: Option<u64>) -> io::Result<[u8; 32]> {
     let file = File::open(path)?;
     let mut hasher = blake3::Hasher::new();
@@ -124,6 +163,9 @@ type Found = (PathBuf, std::fs::Metadata);
 fn group_by_hash(paths: Vec<Found>, max_bytes: Option<u64>, tick: &dyn Fn()) -> Vec<Vec<Found>> {
     let mut by_hash: HashMap<[u8; 32], Vec<Found>> = HashMap::new();
     for (p, m) in paths {
+        if cancelled() {
+            break;
+        }
         tick();
         if let Ok(h) = hash_file(&p, max_bytes) {
             by_hash.entry(h).or_default().push((p, m));
@@ -235,6 +277,19 @@ mod tests {
         let names: Vec<_> = found.iter().map(|f| f.name.as_str()).collect();
         assert_eq!(names, ["big.mov", "mid.zip"]);
         assert_eq!(large_files(&roots, 1000, 1, &|_| {}).len(), 1);
+    }
+
+    #[test]
+    fn old_downloads_keeps_only_old_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let old = dir.path().join("vieux.zip");
+        write(&old, &[1; 500]);
+        write(&dir.path().join("recent.zip"), &[1; 900]);
+        let two_years_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(730 * 86_400);
+        File::options().write(true).open(&old).unwrap().set_modified(two_years_ago).unwrap();
+        let found = old_downloads(dir.path(), 90, &|_| {});
+        let names: Vec<_> = found.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, ["vieux.zip"]);
     }
 
     #[test]
