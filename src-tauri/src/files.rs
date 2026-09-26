@@ -12,6 +12,7 @@ use serde::Serialize;
 use walkdir::{DirEntry, WalkDir};
 
 use crate::fsutil::modified_secs;
+use crate::garde;
 
 #[derive(Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FileEntry {
@@ -69,7 +70,8 @@ pub fn user_roots() -> Vec<PathBuf> {
     ]
     .into_iter()
     .flatten()
-    .filter(|p| p.is_dir())
+    // En administrateur, un dossier perso détourné hors de ton dossier personnel (vers C:\Windows...) est ignoré.
+    .filter(|p| p.is_dir() && garde::user_dir_allowed(p))
     .collect();
     roots.sort();
     // Documents peut contenir d'autres dossiers de la liste (OneDrive) : on évite de compter deux fois.
@@ -234,7 +236,8 @@ pub fn move_to_trash(roots: &[PathBuf], paths: &[String]) -> TrashReport {
             continue;
         };
         let size = real.metadata().map(|m| m.len()).unwrap_or(0);
-        match trash::delete(path) {
+        // On jette le fichier vérifié, pas le chemin reçu de l'interface.
+        match trash::delete(garde::plain(&real)) {
             Ok(()) => {
                 report.moved += 1;
                 report.bytes += size;
@@ -253,12 +256,11 @@ fn inside_roots(roots: &[PathBuf], path: &Path) -> Option<PathBuf> {
 
 /// Ouvre l'Explorateur sur le dossier du fichier, avec le fichier sélectionné.
 pub fn reveal(roots: &[PathBuf], path: &str) -> Result<(), String> {
-    let path = Path::new(path);
-    inside_roots(roots, path).ok_or("Fichier introuvable")?;
+    let path = garde::plain(&inside_roots(roots, Path::new(path)).ok_or("Fichier introuvable")?);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        std::process::Command::new("explorer.exe")
+        std::process::Command::new(garde::windows_program("explorer.exe"))
             .raw_arg(format!("/select,\"{}\"", path.display()))
             .spawn()
             .map(|_| ())

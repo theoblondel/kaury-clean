@@ -91,7 +91,7 @@ const SECTIONS = {
   clean: [["system", "Fichiers système"], ["apps", "Applications"], ["browsers", "Navigateurs"], ["trash", "Corbeille"]],
   perf: [["memory", "Mémoire vive"], ["startup", "Démarrage"]],
   apps: [["uninstall", "Désinstaller"]],
-  files: [["large", "Gros fichiers"], ["dupes", "Doublons"], ["olddl", "Vieux téléchargements"], ["organize", "Ranger"]],
+  files: [["space", "Place du disque"], ["large", "Gros fichiers"], ["dupes", "Doublons"], ["olddl", "Vieux téléchargements"], ["organize", "Ranger"]],
   repair: [["maintenance", "Maintenance"]],
   about: [["about", "À propos"]],
 };
@@ -630,6 +630,29 @@ function demoInvoke(cmd, args) {
     case "open_link": return Promise.reject("Mode démo : les liens s'ouvrent seulement dans l'appli");
     case "relaunch_as_admin": return Promise.reject("Mode démo");
     case "reveal_file": return Promise.reject("Mode démo : l'Explorateur s'ouvre seulement dans l'appli");
+    case "open_folder": return Promise.reject("Mode démo : l'Explorateur s'ouvre seulement dans l'appli");
+    case "disk_usage": {
+      const e = (name, kind, bytes, note) => ({ name, kind, bytes, note, path: "C:\\Users\\toi\\" + name });
+      return wait(2400, {
+        total: 476 * GB, used: 414.8 * GB,
+        groups: [
+          { kind: "files", label: "Tes fichiers", bytes: 168 * GB },
+          { kind: "apps", label: "Données d'applis", bytes: 71 * GB },
+          { kind: "programs", label: "Programmes", bytes: 118 * GB },
+          { kind: "system", label: "Windows et le reste", bytes: 57.8 * GB },
+        ],
+        top: [
+          e("Videos", "files", 96 * GB, "Tes fichiers : « Gros fichiers » et « Doublons » t'aident à trier"),
+          e("Steam", "programs", 74 * GB, "Tes jeux Steam : à désinstaller depuis Steam"),
+          e("Downloads", "files", 38 * GB, "Tes fichiers : « Gros fichiers » et « Doublons » t'aident à trier"),
+          e("Packages", "apps", 20 * GB, "Applis du Microsoft Store et leurs données (WhatsApp, Spotify, Claude…)"),
+          e("Adobe", "programs", 14 * GB, "Applis Adobe et leurs caches"),
+          e("uv", "apps", 9.2 * GB, "Python (uv). Son cache se vide dans Nettoyage › Applications"),
+          e("Google", "apps", 8.5 * GB, "Chrome : profils, extensions et données des sites. Le cache se vide dans Nettoyage"),
+          e(".minecraft", "apps", 2.5 * GB, "Mondes, modpacks et versions de Minecraft"),
+        ],
+      });
+    }
     case "disk_info": return wait(50, { name: "C:", total: 476 * GB, free: 61.2 * GB });
     case "scan_junk": return wait(2200, DEMO_JUNK);
     case "clean_junk": {

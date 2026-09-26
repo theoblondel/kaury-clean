@@ -10,6 +10,7 @@ use std::time::Duration;
 use serde::Serialize;
 
 use crate::fsutil::{clean_dir, dir_size};
+use crate::garde;
 
 const DAY: Duration = Duration::from_secs(24 * 3600);
 
@@ -55,14 +56,16 @@ fn join(base: &Option<PathBuf>, rel: &str) -> Vec<PathBuf> {
     base.iter().map(|b| b.join(rel)).collect()
 }
 
-/// Dossiers de profils d'un navigateur basé sur Chromium (Default, Profile 1, ...).
+/// Caches d'un navigateur ou d'une appli basée sur Chromium / WebView2, profil par profil
+/// (Default, Profile 1, WV2Profile_...). Seulement Cache, Code Cache et GPUCache : les connexions,
+/// l'historique et les données des sites (IndexedDB, Service Worker...) ne sont jamais touchés.
 fn chromium_caches(user_data: Option<PathBuf>) -> Vec<PathBuf> {
     let Some(user_data) = user_data else { return vec![] };
     let Ok(entries) = std::fs::read_dir(&user_data) else { return vec![] };
     let mut out = vec![];
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().to_string();
-        if name == "Default" || name.starts_with("Profile ") {
+        if name == "Default" || name.starts_with("Profile ") || name.starts_with("WV2Profile_") {
             for sub in ["Cache", "Code Cache", "GPUCache"] {
                 out.push(entry.path().join(sub));
             }
@@ -71,6 +74,23 @@ fn chromium_caches(user_data: Option<PathBuf>) -> Vec<PathBuf> {
     out.push(user_data.join("ShaderCache"));
     out.push(user_data.join("GrShaderCache"));
     out
+}
+
+/// Caches d'une appli Electron (VS Code, Slack...) : jamais ses réglages ni ses données.
+fn electron_caches(base: &Option<PathBuf>, app: &str, extra: &[&str]) -> Vec<PathBuf> {
+    ["Cache", "Code Cache", "GPUCache"].iter().chain(extra).flat_map(|sub| join(base, &format!("{app}/{sub}"))).collect()
+}
+
+/// Dossier local d'une appli du Microsoft Store.
+fn store_app(local: &Option<PathBuf>, package: &str, rel: &str) -> Option<PathBuf> {
+    local.as_ref().map(|l| l.join("Packages").join(package).join(rel))
+}
+
+/// Sous-dossiers de `dir` dont le nom commence par `prefix` (« webcache_4430 »...).
+fn prefixed(dir: Option<PathBuf>, prefix: &str) -> Vec<PathBuf> {
+    let Some(dir) = dir else { return vec![] };
+    let Ok(entries) = std::fs::read_dir(&dir) else { return vec![] };
+    entries.flatten().filter(|e| e.file_name().to_string_lossy().starts_with(prefix)).map(|e| e.path()).collect()
 }
 
 fn firefox_caches(local: &Option<PathBuf>) -> Vec<PathBuf> {
@@ -82,8 +102,9 @@ fn firefox_caches(local: &Option<PathBuf>) -> Vec<PathBuf> {
 fn targets() -> Vec<Target> {
     let local = env_path("LOCALAPPDATA");
     let roaming = env_path("APPDATA");
-    let windir = env_path("SystemRoot");
-    let program_data = env_path("ProgramData");
+    // Dossiers de Windows donnés par Windows, jamais par une variable qu'un programme pourrait détourner.
+    let windir = Some(garde::windows_dir());
+    let program_data = Some(program_data());
 
     let mut crash = join(&local, "CrashDumps");
     crash.extend(join(&local, "Microsoft/Windows/WER"));
@@ -97,6 +118,24 @@ fn targets() -> Vec<Target> {
 
     let mut spotify = join(&local, "Spotify/Storage");
     spotify.extend(join(&local, "Spotify/Data"));
+    // La version du Microsoft Store range tout ailleurs.
+    let spotify_store = store_app(&local, "SpotifyAB.SpotifyMusic_zpdnekdrzrea0", "LocalCache/Spotify");
+    spotify.extend(spotify_store.iter().map(|s| s.join("Data")));
+    spotify.extend(chromium_caches(spotify_store));
+
+    let mut dev_python = join(&local, "uv/cache");
+    dev_python.extend(join(&local, "pip/cache"));
+
+    let mut code_editors = electron_caches(&roaming, "Code", &["CachedData", "CachedExtensionVSIXs"]);
+    code_editors.extend(electron_caches(&roaming, "Cursor", &["CachedData", "CachedExtensionVSIXs"]));
+
+    let mut opera = vec![];
+    for base in [&local, &roaming] {
+        for flavour in ["Opera Stable", "Opera GX Stable"] {
+            opera.extend(chromium_caches(base.as_ref().map(|b| b.join("Opera Software").join(flavour))));
+            opera.extend(join(base, &format!("Opera Software/{flavour}/Cache")));
+        }
+    }
 
     let mut discord = vec![];
     for sub in ["Cache", "Code Cache", "GPUCache"] {
@@ -188,6 +227,56 @@ fn targets() -> Vec<Target> {
             needs_admin: false,
         },
         Target {
+            id: "nvidia_installers",
+            group: "system",
+            name: "Installeurs NVIDIA",
+            detail: "Pilote et appli NVIDIA déjà installés : l'appli NVIDIA les retélécharge au besoin",
+            paths: join(&program_data, "NVIDIA Corporation/NVIDIA app/UpdateFramework/ota-artifacts"),
+            min_age: DAY,
+            processes: &[("NVIDIA app.exe", "NVIDIA app")],
+            needs_admin: true,
+        },
+        Target {
+            id: "whatsapp",
+            group: "apps",
+            name: "WhatsApp",
+            detail: "Cache uniquement : tes messages, tes photos et ta connexion ne bougent pas",
+            paths: chromium_caches(store_app(&local, "5319275A.WhatsAppDesktop_cv1g1gvanyjgm", "LocalCache/EBWebView")),
+            min_age: Duration::ZERO,
+            processes: &[("WhatsApp.Root.exe", "WhatsApp"), ("WhatsApp.exe", "WhatsApp")],
+            needs_admin: false,
+        },
+        Target {
+            id: "teams",
+            group: "apps",
+            name: "Microsoft Teams",
+            detail: "Cache uniquement : tes conversations et ta connexion ne bougent pas",
+            paths: chromium_caches(store_app(&local, "MSTeams_8wekyb3d8bbwe", "LocalCache/Microsoft/MSTeams/EBWebView")),
+            min_age: Duration::ZERO,
+            processes: &[("ms-teams.exe", "Teams")],
+            needs_admin: false,
+        },
+        Target {
+            id: "slack",
+            group: "apps",
+            name: "Slack",
+            detail: "Cache uniquement : tes messages et ta connexion ne bougent pas",
+            paths: electron_caches(&roaming, "Slack", &[]),
+            min_age: Duration::ZERO,
+            processes: &[("slack.exe", "Slack")],
+            needs_admin: false,
+        },
+        Target {
+            id: "epic",
+            group: "apps",
+            name: "Epic Games",
+            detail: "Cache des pages du magasin (tes jeux ne bougent pas)",
+            paths: prefixed(local.as_ref().map(|l| l.join("EpicGamesLauncher/Saved")), "webcache"),
+            min_age: Duration::ZERO,
+            processes: &[("EpicGamesLauncher.exe", "Epic Games")],
+            needs_admin: false,
+        },
+        Target {
             id: "discord",
             group: "apps",
             name: "Discord",
@@ -218,6 +307,36 @@ fn targets() -> Vec<Target> {
             needs_admin: false,
         },
         Target {
+            id: "python_cache",
+            group: "apps",
+            name: "Cache Python (uv, pip)",
+            detail: "Paquets Python téléchargés : tes projets gardent les leurs, le reste se retélécharge au besoin",
+            paths: dev_python,
+            min_age: Duration::ZERO,
+            processes: &[("uv.exe", "uv")],
+            needs_admin: false,
+        },
+        Target {
+            id: "yarn_cache",
+            group: "apps",
+            name: "Cache Yarn",
+            detail: "Paquets JavaScript téléchargés, retéléchargés au besoin",
+            paths: join(&local, "Yarn/Cache"),
+            min_age: Duration::ZERO,
+            processes: &[],
+            needs_admin: false,
+        },
+        Target {
+            id: "code_editors",
+            group: "apps",
+            name: "VS Code et Cursor",
+            detail: "Caches et extensions déjà installées : tes réglages et tes projets ne bougent pas",
+            paths: code_editors,
+            min_age: Duration::ZERO,
+            processes: &[("Code.exe", "VS Code"), ("Cursor.exe", "Cursor")],
+            needs_admin: false,
+        },
+        Target {
             id: "chrome",
             group: "browsers",
             name: "Google Chrome",
@@ -245,6 +364,26 @@ fn targets() -> Vec<Target> {
             paths: chromium_caches(local.as_ref().map(|l| l.join("BraveSoftware/Brave-Browser/User Data"))),
             min_age: Duration::ZERO,
             processes: &[("brave.exe", "Brave")],
+            needs_admin: false,
+        },
+        Target {
+            id: "opera",
+            group: "browsers",
+            name: "Opera et Opera GX",
+            detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas",
+            paths: opera,
+            min_age: Duration::ZERO,
+            processes: &[("opera.exe", "Opera")],
+            needs_admin: false,
+        },
+        Target {
+            id: "vivaldi",
+            group: "browsers",
+            name: "Vivaldi",
+            detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas",
+            paths: chromium_caches(local.as_ref().map(|l| l.join("Vivaldi/User Data"))),
+            min_age: Duration::ZERO,
+            processes: &[("vivaldi.exe", "Vivaldi")],
             needs_admin: false,
         },
         Target {
@@ -321,11 +460,37 @@ pub fn scan(progress: &dyn Fn(&str)) -> Vec<JunkItem> {
     items
 }
 
+/// Dossiers de Windows vidés par l'appli : les seuls hors de ton dossier personnel qu'elle accepte
+/// de toucher en administrateur. Comparaison exacte : un TEMP détourné vers C:\Windows\System32
+/// ne passe pas pour autant.
+const WINDOWS_TARGETS: &[&str] = &[
+    "Temp",
+    "SoftwareDistribution/Download",
+    "ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache",
+];
+const PROGRAM_DATA_TARGETS: &[&str] = &[
+    "Microsoft/Windows/WER/ReportArchive",
+    "Microsoft/Windows/WER/ReportQueue",
+    "NVIDIA Corporation/NVIDIA app/UpdateFramework/ota-artifacts",
+];
+
+fn program_data() -> PathBuf {
+    PathBuf::from(format!(r"{}\ProgramData", garde::system_drive()))
+}
+
+fn is_windows_target(path: &Path) -> bool {
+    let (windir, program_data) = (garde::windows_dir(), program_data());
+    WINDOWS_TARGETS.iter().any(|rel| windir.join(rel) == path)
+        || PROGRAM_DATA_TARGETS.iter().any(|rel| program_data.join(rel) == path)
+}
+
 pub fn clean(ids: &[String], progress: &dyn Fn(&str)) -> CleanReport {
     let mut report = CleanReport::default();
     for t in targets().into_iter().filter(|t| ids.iter().any(|id| id == t.id)) {
         progress(t.name);
-        for p in existing(&t.paths) {
+        // Les chemins de ton compte viennent de variables (TEMP, LOCALAPPDATA...) qu'un programme peut
+        // détourner vers C:\Windows : en administrateur, ils doivent être dans ton dossier personnel.
+        for p in existing(&t.paths).filter(|p| is_windows_target(p) || garde::user_dir_allowed(p)) {
             let (freed, removed, skipped) = clean_dir(p, t.min_age);
             report.freed += freed;
             report.removed += removed;
@@ -372,5 +537,64 @@ mod recycle_bin {
     }
     pub fn empty() -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_exact_windows_folders_pass_as_windows_targets() {
+        let windir = garde::windows_dir();
+        assert!(is_windows_target(&windir.join("Temp")));
+        assert!(is_windows_target(&windir.join("SoftwareDistribution/Download")));
+        assert!(!is_windows_target(&windir));
+        assert!(!is_windows_target(&windir.join("System32")));
+        assert!(!is_windows_target(&windir.join("Temp/../System32")));
+        assert!(!is_windows_target(&program_data()));
+    }
+
+    /// Garde-fou de la règle « que des choses inutiles » : aucune cible ne vise un dossier de
+    /// données (connexions, messages, données des sites, programmes installés) ni un profil entier.
+    #[test]
+    fn no_target_touches_user_data() {
+        const FORBIDDEN: &[&str] =
+            &["indexeddb", "service worker", "local storage", "localstate", "webstorage", "cookies", "login data", "winget"];
+        for t in targets() {
+            for p in &t.paths {
+                let p = p.to_string_lossy().replace('\\', "/").to_lowercase();
+                assert!(!FORBIDDEN.iter().any(|bad| p.contains(bad)), "{} vise {p}", t.id);
+                let last = p.trim_end_matches('/').rsplit('/').next().unwrap_or("").to_string();
+                assert!(!["default", "user data", "ebwebview", "spotify"].contains(&last.as_str()), "{} vise {p}", t.id);
+            }
+        }
+    }
+
+    #[test]
+    fn chromium_caches_only_pick_cache_folders() {
+        let root = tempfile::tempdir().unwrap();
+        for d in ["Default", "Profile 2", "WV2Profile_tfw", "Crashpad", "Snapshots"] {
+            std::fs::create_dir(root.path().join(d)).unwrap();
+        }
+        let names: Vec<String> = chromium_caches(Some(root.path().to_path_buf()))
+            .iter()
+            .map(|p| p.strip_prefix(root.path()).unwrap().to_string_lossy().replace('\\', "/"))
+            .collect();
+        for n in &names {
+            let last = n.rsplit('/').next().unwrap();
+            assert!(["Cache", "Code Cache", "GPUCache", "ShaderCache", "GrShaderCache"].contains(&last), "{n}");
+        }
+        assert!(names.contains(&"WV2Profile_tfw/Cache".to_string()));
+        assert!(!names.iter().any(|n| n.starts_with("Crashpad") || n.starts_with("Snapshots")));
+    }
+
+    #[test]
+    fn ids_are_unique() {
+        let mut ids: Vec<_> = targets().iter().map(|t| t.id).collect();
+        ids.sort();
+        let before = ids.len();
+        ids.dedup();
+        assert_eq!(before, ids.len());
     }
 }

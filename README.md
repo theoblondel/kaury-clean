@@ -75,13 +75,14 @@ Un seul bouton. Kaury Clean passe en revue les fichiers inutiles, les applis au 
 
 - Les dossiers nettoyés sont fixés dans le code Rust. L'interface n'envoie que des identifiants, jamais de chemins.
 - Les fichiers temporaires de moins de 24 h sont gardés, et les fichiers utilisés par une appli ouverte sont ignorés.
-- Les liens et jonctions ne sont jamais suivis : on ne sort jamais du dossier nettoyé.
+- Les liens et jonctions ne sont jamais suivis : on ne sort jamais du dossier nettoyé. Chaque fichier est effacé par son vrai emplacement, vérifié au moment même de l'effacer : un dossier remplacé en douce par une jonction vers Windows ne mène nulle part.
 - Gros fichiers et doublons : seulement dans tes dossiers perso, et impossible de supprimer toutes les copies d'un même fichier.
 - Rangement : seuls les fichiers directement dans le dossier bougent, jamais les sous-dossiers ni les raccourcis, et aucun fichier n'est écrasé.
 - Désinstaller et Réparation : seuls les désinstalleurs officiels et les outils de Windows sont lancés, avec des commandes fixées dans le code.
 - Mémoire vive : les processus de Windows ne sont jamais proposés à la fermeture.
-- Mises à jour : seuls les installeurs publiés dans les releases de ce repo sont acceptés, et l'adresse est vérifiée côté Rust.
+- Mises à jour : chaque installeur est signé avec une clé qui ne quitte jamais le PC de Kaury Studio. Sans signature valide, rien n'est lancé, même publié sur ce repo. L'installeur vérifié reste verrouillé jusqu'à son lancement.
 - Droits administrateur : l'appli démarre sans. Les dossiers protégés de Windows sont signalés « admin » et décochés, avec un lien pour relancer en administrateur.
+- En administrateur, l'appli ne peut pas servir de relais à un autre programme : les dossiers de ton compte ne sont touchés que s'ils sont vraiment dans ton dossier personnel (une variable TEMP ou un dossier Documents détourné vers Windows est ignoré), les outils de Windows sont lancés par leur chemin complet, les applis installées pour ton compte seul ne se désinstallent pas avec ces droits, et l'annulation d'un rangement refuse tout déplacement qu'elle n'a pas fait elle-même. Tes fichiers perso (corbeille, rangement) ne se déplacent jamais avec ces droits, et les variables `WEBVIEW2_*`, qui permettraient de remplacer le moteur d'affichage, sont ignorées.
 
 </details>
 
@@ -132,7 +133,10 @@ design/
 
 1. Change le numéro de version dans `package.json`, `src-tauri/Cargo.toml` et `src-tauri/tauri.conf.json`, puis pousse sur `main`.
 2. Sur GitHub : **Releases** > **Draft a new release** > **Choose a tag**, tape `v0.8.0` et choisis **Create new tag**. Clique sur **Publish release**.
-3. GitHub Actions compile l'installeur et l'ajoute à la release (environ 5 minutes). Les applis déjà installées proposent la mise à jour à leur prochaine ouverture.
+3. GitHub Actions compile l'installeur et l'ajoute à la release (environ 5 minutes).
+4. Une fois le build terminé, signe l'installeur depuis ton PC : `npm run signer`. Le fichier `.sig` est ajouté à la release, et les applis déjà installées proposent alors la mise à jour à leur prochaine ouverture. Sans cette étape, elles ne la proposent pas.
+
+La clé de signature se crée une seule fois (`npm run cle`) et vit dans `%USERPROFILE%\.kaury-clean\`, jamais dans ce repo. Garde-en une sauvegarde : sans elle, les versions installées n'accepteront plus aucune mise à jour.
 
 Chaque push sur `main` compile aussi l'installeur (onglet **Actions**, artefact `kaury-clean-windows`), pratique pour tester avant de publier.
 

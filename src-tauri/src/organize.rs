@@ -139,14 +139,28 @@ pub fn can_undo(undo_log: &Path) -> bool {
     undo_log.is_file()
 }
 
+/// Un déplacement noté ressemble-t-il vraiment à un rangement fait par l'appli ?
+/// `dossier/Catégorie/fichier` ↔ `dossier/fichier`, avec `dossier` parmi ceux qu'on sait ranger.
+/// Le journal est un fichier modifiable : sans ce contrôle, un programme pourrait y écrire de faux
+/// chemins et faire déplacer des fichiers de Windows à l'annulation.
+fn legit(m: &Move, dirs: &[PathBuf]) -> bool {
+    let (Some(home), Some(cat_dir), Some(name)) = (m.from.parent(), m.to.parent(), m.from.file_name()) else {
+        return false;
+    };
+    let is_category = cat_dir.file_name().and_then(|n| n.to_str()).is_some_and(|n| CATEGORIES.iter().any(|(c, _)| *c == n));
+    let plain_name = std::path::Path::new(name).components().count() == 1;
+    is_category && plain_name && cat_dir.parent() == Some(home) && dirs.iter().any(|d| d.as_path() == home)
+}
+
 /// Remet chaque fichier du dernier rangement à sa place, puis retire les dossiers de rangement vides.
-pub fn undo(undo_log: &Path) -> OrganizeReport {
+/// `dirs` : les seuls dossiers où un rangement a pu avoir lieu.
+pub fn undo(undo_log: &Path, dirs: &[PathBuf]) -> OrganizeReport {
     let mut report = OrganizeReport::default();
     let Ok(data) = fs::read(undo_log) else {
         report.errors.push("Aucun rangement à annuler".into());
         return report;
     };
-    let moves: Vec<Move> = serde_json::from_slice(&data).unwrap_or_default();
+    let moves: Vec<Move> = serde_json::from_slice::<Vec<Move>>(&data).unwrap_or_default().into_iter().filter(|m| legit(m, dirs)).collect();
     for m in moves.iter().rev() {
         if m.from.exists() {
             report.errors.push(format!("{} existe déjà, fichier laissé dans le dossier rangé", m.from.display()));
@@ -198,7 +212,7 @@ mod tests {
         assert!(d.join("raccourci.lnk").exists());
         assert!(d.join("en-cours.pdf").exists());
 
-        let back = undo(&log);
+        let back = undo(&log, &[d.to_path_buf()]);
         assert_eq!(back.moved, 4);
         assert!(d.join("photo.JPG").exists());
         assert!(!d.join("Images").exists());
@@ -217,5 +231,24 @@ mod tests {
         apply(d, &d.join("undo.json"));
         assert_eq!(fs::read(d.join("Images/photo.png")).unwrap(), b"ancienne");
         assert_eq!(fs::read(d.join("Images/photo (2).png")).unwrap(), b"nouvelle");
+    }
+
+    #[test]
+    fn undo_ignores_forged_moves() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        let precious = outside.path().join("systeme.dll");
+        fs::write(&precious, b"x").unwrap();
+        let forged = vec![
+            Move { from: d.join("vole.dll"), to: precious.clone() },
+            Move { from: d.join("Images/../../x.dll"), to: d.join("Images/x.dll") },
+        ];
+        let log = d.join("undo.json");
+        fs::write(&log, serde_json::to_vec(&forged).unwrap()).unwrap();
+        let report = undo(&log, &[d.to_path_buf()]);
+        assert_eq!(report.moved, 0);
+        assert!(precious.exists());
+        assert!(!d.join("vole.dll").exists());
     }
 }

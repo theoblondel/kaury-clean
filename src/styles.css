@@ -359,3 +359,20 @@ label.item { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* ---------- Place du disque ---------- */
+.space-map { border: 1px solid var(--line); border-radius: 20px; padding: 18px 20px; margin-bottom: 16px; background: linear-gradient(160deg, rgba(241, 232, 203, 0.07), rgba(241, 232, 203, 0.02)); }
+.space-top { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.space-top b { font: 700 26px var(--display); letter-spacing: -0.03em; }
+.space-top span { color: var(--muted); }
+.space-bar { display: flex; gap: 2px; height: 14px; border-radius: 99px; overflow: hidden; background: var(--glass-2); }
+.space-bar i { display: block; height: 100%; min-width: 3px; }
+.space-legend { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+.space-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.space-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.space-legend b { margin-left: 2px; font: 500 12.5px var(--mono); color: var(--text); }
+.k-files, .item .ic.k-files { background: var(--orange); color: var(--ink); }
+.k-apps, .item .ic.k-apps { background: var(--orange-3); color: var(--ink); }
+.k-programs, .item .ic.k-programs { background: var(--cream); color: var(--ink); }
+.k-system, .item .ic.k-system { background: var(--dim); color: var(--ink); }
+.bar.thin { height: 4px; margin-top: 8px; max-width: 360px; }

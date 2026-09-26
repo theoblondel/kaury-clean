@@ -1,11 +1,13 @@
 {
   "name": "kaury-clean",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
-    "build": "tauri build"
+    "build": "tauri build",
+    "cle": "node scripts/signature.mjs cle",
+    "signer": "node scripts/signature.mjs signer"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"

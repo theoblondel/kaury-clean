@@ -1,6 +1,6 @@
 [package]
 name = "kaury-clean"
-version = "0.7.0"
+version = "0.8.0"
 description = "Kaury Clean, un nettoyeur de PC Windows"
 authors = ["Kaury Studio"]
 edition = "2021"
@@ -21,6 +21,7 @@ ureq = { version = "2", default-features = false, features = ["json", "native-tl
 native-tls = "0.2"
 walkdir = "2"
 blake3 = { version = "1", features = ["pure"] }
+ed25519-dalek = "2"
 dirs = "6"
 trash = "5"
 sysinfo = { version = "0.37", default-features = false, features = ["disk", "system"] }
