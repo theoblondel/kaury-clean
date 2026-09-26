@@ -1,6 +1,7 @@
 // Kaury Clean : interface. Tout le travail sur le disque se fait côté Rust (src-tauri).
 
 const invoke = window.__TAURI__ ? window.__TAURI__.core.invoke : demoInvoke;
+let elevated = false;
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -33,6 +34,32 @@ function toast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove("on"), 3200);
 }
+
+// Le moteur Rust envoie ce qu'il est en train d'analyser : on l'affiche dans l'élément « actif ».
+let progressEl = null;
+window.__TAURI__?.event.listen("progress", (e) => {
+  if (progressEl) progressEl.textContent = e.payload;
+});
+
+// Compteur local de l'espace libéré depuis l'installation.
+const STATS_KEY = "kaury-clean-stats";
+function readStats() {
+  try { return JSON.parse(localStorage.getItem(STATS_KEY)) || { freed: 0, last: 0 }; } catch { return { freed: 0, last: 0 }; }
+}
+function addFreed(bytes) {
+  const st = readStats();
+  st.freed += bytes; st.last = Date.now() / 1000;
+  try { localStorage.setItem(STATS_KEY, JSON.stringify(st)); } catch { /* stockage indisponible : tant pis */ }
+  renderStats();
+}
+function renderStats() {
+  const st = readStats();
+  $("#stats").hidden = !st.freed;
+  if (st.freed) $("#stats").textContent = `${fmt(st.freed)} libérés depuis l'installation · dernier nettoyage ${ago(st.last)}`;
+}
+
+// Un élément bloqué tant que l'appli n'a pas les droits administrateur.
+const locked = (item) => item.needs_admin && !elevated;
 
 const sumChecked = (root) => $$("input[type=checkbox]:checked", root).reduce((a, i) => a + Number(i.dataset.bytes || 0), 0);
 
@@ -103,10 +130,14 @@ async function runScan() {
   $("#resetBtn").hidden = true; $("#results").hidden = true; $("#scanText").hidden = false;
   $("#scanTitle").textContent = "Analyse en cours";
   $("#scanText").textContent = "On passe en revue les caches, les fichiers temporaires et la corbeille.";
+  $("#stats").hidden = true;
   orbVal("…", "analyse");
+  progressEl = $("#scanText");
   try {
     junk = await invoke("scan_junk");
+    progressEl = null;
   } catch (e) {
+    progressEl = null;
     scanState = "idle"; ringMode = "idle";
     $("#scanBtn").disabled = false; $("#scanBtn").textContent = "Analyser";
     $("#scanTitle").textContent = "L'analyse n'a pas pu aboutir.";
@@ -118,7 +149,7 @@ async function runScan() {
 }
 
 function groupTotal(group) {
-  return (junk || []).filter((i) => i.group === group).reduce((a, i) => a + i.bytes, 0);
+  return (junk || []).filter((i) => i.group === group && !locked(i)).reduce((a, i) => a + i.bytes, 0);
 }
 
 function showScanResults() {
@@ -129,7 +160,7 @@ function showScanResults() {
   const r = $("#results");
   r.hidden = false;
   r.innerHTML = Object.entries(GROUPS).map(([g, title]) => {
-    const items = junk.filter((i) => i.group === g && i.bytes > 0);
+    const items = junk.filter((i) => i.group === g && i.bytes > 0 && !locked(i));
     if (!items.length) return "";
     const warn = items.find((i) => i.running);
     return `<label class="res"><input type="checkbox" checked value="${esc(g)}" data-bytes="${groupTotal(g)}">
@@ -149,6 +180,11 @@ function showScanResults() {
     $("#scanBtn").disabled = false; $("#scanBtn").textContent = "Nouvelle analyse";
     return;
   }
+  const adminBytes = junk.filter(locked).reduce((a, i) => a + i.bytes, 0);
+  if (adminBytes > 0) {
+    r.insertAdjacentHTML("beforeend", `<div class="admin-note">+ ${fmt(adminBytes)} dans les dossiers protégés de Windows.<button class="link" data-admin>Relancer en administrateur</button></div>`);
+    $("[data-admin]", r).addEventListener("click", relaunchAsAdmin);
+  }
   $$("input", r).forEach((i) => i.addEventListener("change", update));
   update();
   $("#scanBtn").textContent = "Nettoyer";
@@ -158,7 +194,7 @@ function showScanResults() {
 async function runClean(selection, from) {
   // selection : des groupes (depuis l'analyse) ou des identifiants (depuis un module)
   const ids = from === "scan"
-    ? junk.filter((i) => selection.includes(i.group)).map((i) => i.id)
+    ? junk.filter((i) => selection.includes(i.group) && !locked(i)).map((i) => i.id)
     : selection;
   if (!ids.length) return;
   const expected = junk.filter((i) => ids.includes(i.id)).reduce((a, i) => a + i.bytes, 0);
@@ -170,11 +206,16 @@ async function runClean(selection, from) {
   $("#scanTitle").textContent = "Nettoyage en cours";
   ringMode = "spin";
   orbVal(fmt(expected), "à libérer");
+  $("#scanText").hidden = false;
+  $("#scanText").textContent = "";
+  progressEl = $("#scanText");
 
   let report;
   try {
     report = await invoke("clean_junk", { ids });
+    progressEl = null;
   } catch (e) {
+    progressEl = null;
     toast("Le nettoyage a échoué : " + e);
     scanState = "done"; ringMode = "idle";
     $("#scanBtn").disabled = false; $("#scanBtn").textContent = "Nouvelle analyse";
@@ -189,6 +230,7 @@ async function runClean(selection, from) {
     : `${report.removed.toLocaleString("fr-CH")} fichiers supprimés.`;
   scanState = "done";
   $("#scanBtn").disabled = false; $("#scanBtn").textContent = "Nouvelle analyse";
+  addFreed(report.freed);
   junk = null;
   renderJunkEverywhere();
   refreshDisk();
@@ -215,10 +257,11 @@ function renderGroupView(g) {
     return;
   }
   el.innerHTML = head + `<div class="list">${items.map((it) => `
-    <label class="item"><input type="checkbox" value="${esc(it.id)}" data-bytes="${it.bytes}" ${it.bytes > 0 ? "checked" : "disabled"}>
-      <span class="txt"><div class="n">${esc(it.name)}${it.running ? `<span class="chip warn">${esc(it.running)} ouvert : ferme-le pour tout nettoyer</span>` : ""}</div>
+    <label class="item"><input type="checkbox" value="${esc(it.id)}" data-bytes="${it.bytes}" ${it.bytes > 0 && !locked(it) ? "checked" : ""} ${it.bytes > 0 ? "" : "disabled"}>
+      <span class="txt"><div class="n">${esc(it.name)}${locked(it) ? `<span class="chip">admin</span>` : ""}${it.running ? `<span class="chip warn">${esc(it.running)} ouvert : ferme-le pour tout nettoyer</span>` : ""}</div>
       <div class="p">${esc(it.detail)} · ${it.files.toLocaleString("fr-CH")} fichiers</div></span>
       <span class="s">${fmt(it.bytes)}</span></label>`).join("")}</div>
+    ${items.some(locked) ? `<div class="admin-note left">Les éléments « admin » sont dans des dossiers protégés : sans les droits administrateur, Windows empêche presque tout de partir.<button class="link" data-admin>Relancer en administrateur</button></div>` : ""}
     <div class="foot"><span>Sélection : <b class="sel"></b></span><button class="cta small" data-clean>${g === "trash" ? "Vider la corbeille" : "Nettoyer"}</button></div>`;
   const update = () => {
     const bytes = sumChecked(el);
@@ -227,6 +270,7 @@ function renderGroupView(g) {
   };
   $$("input", el).forEach((i) => i.addEventListener("change", update));
   $("[data-clean]", el).addEventListener("click", () => runClean($$("input:checked", el).map((i) => i.value), g));
+  $("[data-admin]", el)?.addEventListener("click", relaunchAsAdmin);
   update();
 }
 
@@ -234,10 +278,12 @@ function renderGroupView(g) {
 $("#largeBtn").addEventListener("click", loadLarge);
 async function loadLarge() {
   const box = $("#largeList");
-  box.innerHTML = `<div class="empty"><div class="spinner"></div>Recherche dans tes dossiers…</div>`;
+  box.innerHTML = `<div class="empty"><div class="spinner"></div>Recherche dans tes dossiers…<span class="progress"></span></div>`;
+  progressEl = $(".progress", box);
   $("#largeBtn").disabled = true;
   try {
     const files = await invoke("find_large_files", { minMb: Number($("#largeMin").value) });
+    progressEl = null;
     renderFileList(box, files.length ? [{ files }] : [], { preselect: false, onDone: loadLarge });
   } catch (e) {
     box.innerHTML = `<div class="empty">La recherche a échoué : ${esc(e)}</div>`;
@@ -249,10 +295,12 @@ async function loadLarge() {
 $("#dupesBtn").addEventListener("click", loadDupes);
 async function loadDupes() {
   const box = $("#dupesList");
-  box.innerHTML = `<div class="empty"><div class="spinner"></div>Comparaison des fichiers… Ça peut prendre une minute.</div>`;
+  box.innerHTML = `<div class="empty"><div class="spinner"></div>Comparaison des fichiers… Ça peut prendre une minute.<span class="progress"></span></div>`;
+  progressEl = $(".progress", box);
   $("#dupesBtn").disabled = true;
   try {
     const groups = await invoke("find_duplicates");
+    progressEl = null;
     renderFileList(box, groups, { preselect: true, onDone: loadDupes });
   } catch (e) {
     box.innerHTML = `<div class="empty">La recherche a échoué : ${esc(e)}</div>`;
@@ -274,7 +322,7 @@ function renderFileList(box, groups, { preselect, onDone }) {
       <label class="item"><input type="checkbox" value="${esc(f.path)}" data-bytes="${f.bytes}" ${isDupes && i > 0 ? "checked" : ""}>
         <span class="txt"><div class="n">${esc(isDupes ? f.folder : f.name)}${isDupes && i === 0 ? `<span class="chip ok">la plus récente</span>` : ""}<span class="chip ${!isDupes && f.bytes > 4 * 1024 ** 3 ? "high" : ""}">${esc(ago(f.modified))}</span></div>
         <div class="p">${esc(isDupes ? f.name : f.folder)}</div></span>
-        <span class="s">${fmt(f.bytes)}</span></label>`).join("")}`).join("")}</div>
+        <span class="end"><button class="reveal" data-reveal="${esc(f.path)}" title="Afficher dans l'Explorateur">Afficher</button><span class="s">${fmt(f.bytes)}</span></span></label>`).join("")}`).join("")}</div>
     <div class="foot"><span>Sélection : <b class="sel"></b></span><button class="cta small" data-trash>Mettre à la corbeille</button></div>`;
   const update = () => {
     const bytes = sumChecked(box);
@@ -282,6 +330,10 @@ function renderFileList(box, groups, { preselect, onDone }) {
     $("[data-trash]", box).disabled = bytes === 0;
   };
   $$("input", box).forEach((i) => i.addEventListener("change", update));
+  $$("[data-reveal]", box).forEach((b) => b.addEventListener("click", (e) => {
+    e.preventDefault(); // le bouton est dans un <label> : sans ça, il cocherait la case
+    invoke("reveal_file", { path: b.dataset.reveal }).catch((err) => toast(String(err)));
+  }));
   update();
   $("[data-trash]", box).addEventListener("click", async () => {
     const paths = $$("input:checked", box).map((i) => i.value);
@@ -337,9 +389,31 @@ async function loadStartup() {
   }));
 }
 
+// ---------- Droits administrateur ----------
+async function relaunchAsAdmin() {
+  try {
+    await invoke("relaunch_as_admin");
+  } catch (e) {
+    toast("Relance annulée. Tu peux continuer sans les droits administrateur.");
+  }
+}
+
+// Menu clic droit du navigateur (Recharger, Inspecter…) : inutile dans une appli.
+document.addEventListener("contextmenu", (e) => {
+  if (!e.target.closest(".p")) e.preventDefault();
+});
+
 // ---------- Démarrage de l'interface ----------
-renderJunkEverywhere();
-refreshDisk();
+(async () => {
+  try {
+    const info = await invoke("app_info");
+    elevated = info.elevated;
+    $("#version").textContent = `v${info.version}${elevated ? " · administrateur" : ""}`;
+  } catch (e) { console.error(e); }
+  renderJunkEverywhere();
+  renderStats();
+  refreshDisk();
+})();
 
 // ---------- Mode démo (ouverture dans un navigateur, sans Tauri) ----------
 function demoInvoke(cmd, args) {
@@ -350,10 +424,13 @@ function demoInvoke(cmd, args) {
     return { path, name: path.slice(i + 1), folder: path.slice(0, i), bytes, modified: now - daysOld * day };
   };
   switch (cmd) {
+    case "app_info": return wait(20, { version: "0.2.0", elevated: false });
+    case "relaunch_as_admin": return Promise.reject("Mode démo");
+    case "reveal_file": return Promise.reject("Mode démo : l'Explorateur s'ouvre seulement dans l'appli");
     case "disk_info": return wait(50, { name: "C:", total: 476 * GB, free: 61.2 * GB });
     case "scan_junk": return wait(2200, [
       { id: "user_temp", group: "system", name: "Fichiers temporaires", detail: "Dossier Temp de ton compte", bytes: 3.3 * GB, files: 18422, running: null },
-      { id: "windows_update", group: "system", name: "Téléchargements Windows Update", detail: "Mises à jour déjà installées", bytes: 2.1 * GB, files: 311, running: null },
+      { id: "windows_update", group: "system", name: "Téléchargements Windows Update", detail: "Mises à jour déjà installées", bytes: 2.1 * GB, files: 311, running: null, needs_admin: true },
       { id: "crash_reports", group: "system", name: "Rapports d'erreur", detail: "Rapports de plantage et fichiers dump", bytes: 268 * MB, files: 47, running: null },
       { id: "adobe_media_cache", group: "system", name: "Cache média Adobe", detail: "Premiere Pro et After Effects", bytes: 1.8 * GB, files: 902, running: null },
       { id: "chrome", group: "browsers", name: "Google Chrome", detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas", bytes: 1.2 * GB, files: 6230, running: "Chrome" },
@@ -376,6 +453,7 @@ function demoInvoke(cmd, args) {
     case "list_startup_apps": return wait(200, [
       { id: "hkcu|Adobe Creative Cloud", name: "Adobe Creative Cloud", command: '"C:\\Program Files\\Adobe\\Adobe Creative Cloud\\ACC\\Creative Cloud.exe" --showwindow=false', scope: "user", enabled: true },
       { id: "hkcu|Discord", name: "Discord", command: "C:\\Users\\Theo\\AppData\\Local\\Discord\\Update.exe --processStart Discord.exe", scope: "user", enabled: true },
+      { id: "folder|Logitech G HUB.lnk", name: "Logitech G HUB", command: "C:\\Users\\Theo\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\Logitech G HUB.lnk", scope: "user", enabled: true },
       { id: "hkcu|Spotify", name: "Spotify", command: "C:\\Users\\Theo\\AppData\\Roaming\\Spotify\\Spotify.exe /minimized", scope: "user", enabled: false },
       { id: "hklm|SecurityHealth", name: "SecurityHealth", command: "%windir%\\system32\\SecurityHealthSystray.exe", scope: "machine", enabled: true },
     ]);

@@ -19,6 +19,7 @@ pub struct StartupApp {
 #[cfg(windows)]
 mod imp {
     use super::StartupApp;
+    use std::path::PathBuf;
     use winreg::enums::*;
     use winreg::{RegKey, RegValue, HKEY};
 
@@ -26,11 +27,41 @@ mod imp {
     const RUN32: &str = r"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run";
     const APPROVED: &str = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved";
 
-    /// Chaque source : (id, ruche, clé Run, sous-clé StartupApproved, portée).
-    const SOURCES: [(&str, HKEY, &str, &str, &str); 3] = [
-        ("hkcu", HKEY_CURRENT_USER, RUN, "Run", "user"),
-        ("hklm", HKEY_LOCAL_MACHINE, RUN, "Run", "machine"),
-        ("hklm32", HKEY_LOCAL_MACHINE, RUN32, "Run32", "machine"),
+    enum Kind {
+        /// Une clé Run du registre.
+        Registry(&'static str),
+        /// Un dossier Démarrage rempli de raccourcis, donné par sa variable d'environnement de base.
+        Folder(&'static str, &'static str),
+    }
+
+    struct Source {
+        id: &'static str,
+        hive: HKEY,
+        kind: Kind,
+        approved: &'static str,
+        scope: &'static str,
+    }
+
+    const STARTUP_FOLDER: &str = r"Microsoft\Windows\Start Menu\Programs\Startup";
+
+    const SOURCES: [Source; 5] = [
+        Source { id: "hkcu", hive: HKEY_CURRENT_USER, kind: Kind::Registry(RUN), approved: "Run", scope: "user" },
+        Source { id: "hklm", hive: HKEY_LOCAL_MACHINE, kind: Kind::Registry(RUN), approved: "Run", scope: "machine" },
+        Source { id: "hklm32", hive: HKEY_LOCAL_MACHINE, kind: Kind::Registry(RUN32), approved: "Run32", scope: "machine" },
+        Source {
+            id: "folder",
+            hive: HKEY_CURRENT_USER,
+            kind: Kind::Folder("APPDATA", STARTUP_FOLDER),
+            approved: "StartupFolder",
+            scope: "user",
+        },
+        Source {
+            id: "commonfolder",
+            hive: HKEY_LOCAL_MACHINE,
+            kind: Kind::Folder("ProgramData", STARTUP_FOLDER),
+            approved: "StartupFolder",
+            scope: "machine",
+        },
     ];
 
     fn is_enabled(approved: &Option<RegKey>, name: &str) -> bool {
@@ -43,24 +74,55 @@ mod imp {
             .unwrap_or(true)
     }
 
+    fn utf16(bytes: &[u8]) -> String {
+        let wide: Vec<u16> = bytes.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        String::from_utf16_lossy(&wide).trim_end_matches('\0').to_string()
+    }
+
+    fn folder(base: &str, rel: &str) -> Option<PathBuf> {
+        std::env::var_os(base).map(|b| PathBuf::from(b).join(rel))
+    }
+
+    /// Les entrées d'une source : (nom de la valeur StartupApproved, nom affiché, commande).
+    fn entries(src: &Source) -> Vec<(String, String, String)> {
+        match src.kind {
+            Kind::Registry(run) => RegKey::predef(src.hive)
+                .open_subkey_with_flags(run, KEY_READ)
+                .map(|k| {
+                    k.enum_values()
+                        .flatten()
+                        .map(|(name, value)| (name.clone(), name, utf16(&value.bytes)))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            Kind::Folder(base, rel) => {
+                let Some(dir) = folder(base, rel) else { return vec![] };
+                let Ok(read) = std::fs::read_dir(&dir) else { return vec![] };
+                read.flatten()
+                    .filter(|e| e.path().is_file() && e.file_name() != "desktop.ini")
+                    .map(|e| {
+                        let file = e.file_name().to_string_lossy().into_owned();
+                        let shown = e.path().file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or(file.clone());
+                        (file, shown, e.path().display().to_string())
+                    })
+                    .collect()
+            }
+        }
+    }
+
     pub fn list() -> Vec<StartupApp> {
         let mut apps = vec![];
-        for (src, hive, run, approved_sub, scope) in SOURCES {
-            let root = RegKey::predef(hive);
-            let Ok(run_key) = root.open_subkey_with_flags(run, KEY_READ) else { continue };
-            let approved = root.open_subkey_with_flags(format!(r"{APPROVED}\{approved_sub}"), KEY_READ).ok();
-            for (name, value) in run_key.enum_values().flatten() {
-                let command = String::from_utf16_lossy(
-                    &value.bytes.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect::<Vec<_>>(),
-                )
-                .trim_end_matches('\0')
-                .to_string();
+        for src in &SOURCES {
+            let approved = RegKey::predef(src.hive)
+                .open_subkey_with_flags(format!(r"{APPROVED}\{}", src.approved), KEY_READ)
+                .ok();
+            for (key, name, command) in entries(src) {
                 apps.push(StartupApp {
-                    id: format!("{src}|{name}"),
-                    enabled: is_enabled(&approved, &name),
+                    id: format!("{}|{key}", src.id),
+                    enabled: is_enabled(&approved, &key),
                     name,
                     command,
-                    scope: scope.into(),
+                    scope: src.scope.into(),
                 });
             }
         }
@@ -69,14 +131,12 @@ mod imp {
     }
 
     pub fn set(id: &str, enabled: bool) -> Result<(), String> {
-        let (src, name) = id.split_once('|').ok_or("Appli inconnue")?;
-        let (_, hive, run, approved_sub, _) =
-            SOURCES.into_iter().find(|s| s.0 == src).ok_or("Appli inconnue")?;
-        let root = RegKey::predef(hive);
+        let (src_id, key) = id.split_once('|').ok_or("Appli inconnue")?;
+        let src = SOURCES.iter().find(|s| s.id == src_id).ok_or("Appli inconnue")?;
         // On vérifie que l'entrée existe vraiment avant d'écrire quoi que ce soit.
-        root.open_subkey_with_flags(run, KEY_READ)
-            .and_then(|k| k.get_raw_value(name))
-            .map_err(|_| "Cette appli n'est plus dans la liste de démarrage".to_string())?;
+        if !entries(src).iter().any(|(k, _, _)| k == key) {
+            return Err("Cette appli n'est plus dans la liste de démarrage".into());
+        }
 
         let mut bytes = vec![0u8; 12];
         if enabled {
@@ -91,11 +151,11 @@ mod imp {
             bytes[4..].copy_from_slice(&filetime.to_le_bytes());
         }
 
-        let (key, _) = root
-            .create_subkey_with_flags(format!(r"{APPROVED}\{approved_sub}"), KEY_SET_VALUE)
-            .map_err(|_| "Droits administrateur nécessaires pour cette appli".to_string())?;
-        key.set_raw_value(name, &RegValue { bytes, vtype: REG_BINARY })
-            .map_err(|_| "Droits administrateur nécessaires pour cette appli".to_string())
+        let admin = "Droits administrateur nécessaires pour cette appli".to_string();
+        let (approved, _) = RegKey::predef(src.hive)
+            .create_subkey_with_flags(format!(r"{APPROVED}\{}", src.approved), KEY_SET_VALUE)
+            .map_err(|_| admin.clone())?;
+        approved.set_raw_value(key, &RegValue { bytes, vtype: REG_BINARY }).map_err(|_| admin)
     }
 }
 

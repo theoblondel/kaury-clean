@@ -23,6 +23,8 @@ struct Target {
     min_age: Duration,
     /// Processus qui verrouillent ces fichiers tant qu'ils tournent : (nom du .exe, nom affiché).
     processes: &'static [(&'static str, &'static str)],
+    /// Dossier protégé par Windows : sans les droits administrateur, presque rien ne peut partir.
+    needs_admin: bool,
 }
 
 #[derive(Serialize)]
@@ -35,6 +37,7 @@ pub struct JunkItem {
     files: u64,
     /// Nom de l'appli ouverte qui empêche un nettoyage complet, s'il y en a une.
     running: Option<String>,
+    needs_admin: bool,
 }
 
 #[derive(Serialize, Default)]
@@ -104,6 +107,7 @@ fn targets() -> Vec<Target> {
             paths: vec![env::temp_dir()],
             min_age: DAY,
             processes: &[],
+            needs_admin: false,
         },
         Target {
             id: "windows_temp",
@@ -113,6 +117,7 @@ fn targets() -> Vec<Target> {
             paths: join(&windir, "Temp"),
             min_age: DAY,
             processes: &[],
+            needs_admin: true,
         },
         Target {
             id: "windows_update",
@@ -122,6 +127,7 @@ fn targets() -> Vec<Target> {
             paths: join(&windir, "SoftwareDistribution/Download"),
             min_age: DAY,
             processes: &[],
+            needs_admin: true,
         },
         Target {
             id: "crash_reports",
@@ -131,6 +137,7 @@ fn targets() -> Vec<Target> {
             paths: crash,
             min_age: Duration::ZERO,
             processes: &[],
+            needs_admin: false,
         },
         Target {
             id: "shader_cache",
@@ -140,6 +147,7 @@ fn targets() -> Vec<Target> {
             paths: shaders,
             min_age: Duration::ZERO,
             processes: &[],
+            needs_admin: false,
         },
         Target {
             id: "adobe_media_cache",
@@ -149,6 +157,7 @@ fn targets() -> Vec<Target> {
             paths: adobe,
             min_age: Duration::ZERO,
             processes: &[("Adobe Premiere Pro.exe", "Premiere Pro"), ("AfterFX.exe", "After Effects"), ("Adobe Media Encoder.exe", "Media Encoder")],
+            needs_admin: false,
         },
         Target {
             id: "chrome",
@@ -158,6 +167,7 @@ fn targets() -> Vec<Target> {
             paths: chromium_caches(local.as_ref().map(|l| l.join("Google/Chrome/User Data"))),
             min_age: Duration::ZERO,
             processes: &[("chrome.exe", "Chrome")],
+            needs_admin: false,
         },
         Target {
             id: "edge",
@@ -167,6 +177,7 @@ fn targets() -> Vec<Target> {
             paths: chromium_caches(local.as_ref().map(|l| l.join("Microsoft/Edge/User Data"))),
             min_age: Duration::ZERO,
             processes: &[("msedge.exe", "Edge")],
+            needs_admin: false,
         },
         Target {
             id: "brave",
@@ -176,6 +187,7 @@ fn targets() -> Vec<Target> {
             paths: chromium_caches(local.as_ref().map(|l| l.join("BraveSoftware/Brave-Browser/User Data"))),
             min_age: Duration::ZERO,
             processes: &[("brave.exe", "Brave")],
+            needs_admin: false,
         },
         Target {
             id: "firefox",
@@ -185,6 +197,7 @@ fn targets() -> Vec<Target> {
             paths: firefox_caches(&local),
             min_age: Duration::ZERO,
             processes: &[("firefox.exe", "Firefox")],
+            needs_admin: false,
         },
     ]
 }
@@ -200,12 +213,14 @@ fn existing(paths: &[PathBuf]) -> impl Iterator<Item = &Path> {
     paths.iter().map(PathBuf::as_path).filter(|p| p.is_dir())
 }
 
-pub fn scan() -> Vec<JunkItem> {
+/// `progress` reçoit le nom de chaque élément au moment où il est analysé.
+pub fn scan(progress: &dyn Fn(&str)) -> Vec<JunkItem> {
     let mut sys = sysinfo::System::new();
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     let mut items: Vec<JunkItem> = targets()
         .into_iter()
         .filter_map(|t| {
+            progress(t.name);
             let mut bytes = 0;
             let mut files = 0;
             let mut found = false;
@@ -227,10 +242,12 @@ pub fn scan() -> Vec<JunkItem> {
                 bytes,
                 files,
                 running: running_process(&sys, t.processes),
+                needs_admin: t.needs_admin,
             })
         })
         .collect();
 
+    progress("Corbeille");
     if let Some((bytes, files)) = recycle_bin::query() {
         items.push(JunkItem {
             id: "recycle_bin".into(),
@@ -240,14 +257,16 @@ pub fn scan() -> Vec<JunkItem> {
             bytes,
             files,
             running: None,
+            needs_admin: false,
         });
     }
     items
 }
 
-pub fn clean(ids: &[String]) -> CleanReport {
+pub fn clean(ids: &[String], progress: &dyn Fn(&str)) -> CleanReport {
     let mut report = CleanReport::default();
     for t in targets().into_iter().filter(|t| ids.iter().any(|id| id == t.id)) {
+        progress(t.name);
         for p in existing(&t.paths) {
             let (freed, removed, skipped) = clean_dir(p, t.min_age);
             report.freed += freed;
@@ -256,6 +275,7 @@ pub fn clean(ids: &[String]) -> CleanReport {
         }
     }
     if ids.iter().any(|id| id == "recycle_bin") {
+        progress("Corbeille");
         if let Some((bytes, files)) = recycle_bin::query() {
             if recycle_bin::empty() {
                 report.freed += bytes;

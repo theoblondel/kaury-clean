@@ -14,9 +14,15 @@
 | **Fichiers système** | Fichiers temporaires, téléchargements Windows Update, rapports d'erreur, cache de la carte graphique, cache média Adobe (Premiere Pro, After Effects). |
 | **Navigateurs** | Cache de Chrome, Edge, Brave et Firefox. Mots de passe, favoris, historique et sessions ne sont jamais touchés. |
 | **Corbeille** | Vide la corbeille de tous les disques. |
-| **Gros fichiers** | Liste les fichiers les plus lourds de tes dossiers perso. Rien n'est coché d'avance. |
+| **Gros fichiers** | Liste les fichiers les plus lourds de tes dossiers perso, avec un bouton pour les afficher dans l'Explorateur. Rien n'est coché d'avance. |
 | **Doublons** | Trouve les fichiers identiques (comparaison du contenu, pas seulement du nom) et garde la copie la plus récente. |
-| **Démarrage** | Active ou désactive les applis lancées avec Windows, comme le Gestionnaire des tâches. |
+| **Démarrage** | Active ou désactive les applis lancées avec Windows (registre et dossiers Démarrage), comme le Gestionnaire des tâches. |
+
+L'analyse affiche en direct ce qu'elle parcourt, et l'appli garde le compte de l'espace libéré depuis l'installation.
+
+### Droits administrateur
+
+Kaury Clean démarre sans droits particuliers. Les dossiers protégés de Windows (`C:\Windows\Temp`, Windows Update) sont alors signalés « admin » et décochés. Le lien **Relancer en administrateur** rouvre l'appli avec les droits, après la confirmation de Windows.
 
 ## Sécurité
 

@@ -65,8 +65,12 @@ fn is_hidden(entry: &DirEntry) -> bool {
     name.starts_with('.') || name == "node_modules" || name == "$RECYCLE.BIN"
 }
 
-fn walk_files(roots: &[PathBuf]) -> impl Iterator<Item = (PathBuf, std::fs::Metadata)> + '_ {
-    roots.iter().flat_map(|root| {
+fn walk_files<'a>(
+    roots: &'a [PathBuf],
+    progress: &'a dyn Fn(&str),
+) -> impl Iterator<Item = (PathBuf, std::fs::Metadata)> + 'a {
+    roots.iter().flat_map(move |root| {
+        progress(&root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
         WalkDir::new(root)
             .into_iter()
             .filter_entry(|e| e.depth() == 0 || !is_hidden(e))
@@ -87,9 +91,9 @@ fn entry(path: &Path, meta: &std::fs::Metadata) -> FileEntry {
 }
 
 /// Les `limit` plus gros fichiers d'au moins `min_bytes`, du plus lourd au plus léger.
-pub fn large_files(roots: &[PathBuf], min_bytes: u64, limit: usize) -> Vec<FileEntry> {
+pub fn large_files(roots: &[PathBuf], min_bytes: u64, limit: usize, progress: &dyn Fn(&str)) -> Vec<FileEntry> {
     let mut heap: BinaryHeap<Reverse<FileEntry>> = BinaryHeap::new();
-    for (path, meta) in walk_files(roots) {
+    for (path, meta) in walk_files(roots, progress) {
         if meta.len() < min_bytes {
             continue;
         }
@@ -115,9 +119,12 @@ fn hash_file(path: &Path, max_bytes: Option<u64>) -> io::Result<[u8; 32]> {
 }
 
 /// Regroupe des chemins par empreinte, et ne garde que les groupes d'au moins deux fichiers.
-fn group_by_hash(paths: Vec<(PathBuf, std::fs::Metadata)>, max_bytes: Option<u64>) -> Vec<Vec<(PathBuf, std::fs::Metadata)>> {
-    let mut by_hash: HashMap<[u8; 32], Vec<(PathBuf, std::fs::Metadata)>> = HashMap::new();
+type Found = (PathBuf, std::fs::Metadata);
+
+fn group_by_hash(paths: Vec<Found>, max_bytes: Option<u64>, tick: &dyn Fn()) -> Vec<Vec<Found>> {
+    let mut by_hash: HashMap<[u8; 32], Vec<Found>> = HashMap::new();
     for (p, m) in paths {
+        tick();
         if let Ok(h) = hash_file(&p, max_bytes) {
             by_hash.entry(h).or_default().push((p, m));
         }
@@ -127,18 +134,26 @@ fn group_by_hash(paths: Vec<(PathBuf, std::fs::Metadata)>, max_bytes: Option<u64
 
 /// Fichiers identiques au contenu près. On compare d'abord la taille, puis le début du fichier,
 /// et seulement ensuite le fichier entier : c'est ce qui garde l'analyse rapide.
-pub fn duplicates(roots: &[PathBuf], min_bytes: u64) -> Vec<DuplicateGroup> {
-    let mut by_size: HashMap<u64, Vec<(PathBuf, std::fs::Metadata)>> = HashMap::new();
-    for (path, meta) in walk_files(roots) {
+pub fn duplicates(roots: &[PathBuf], min_bytes: u64, progress: &dyn Fn(&str)) -> Vec<DuplicateGroup> {
+    let mut by_size: HashMap<u64, Vec<Found>> = HashMap::new();
+    for (path, meta) in walk_files(roots, progress) {
         if meta.len() >= min_bytes {
             by_size.entry(meta.len()).or_default().push((path, meta));
         }
     }
-    let mut groups: Vec<DuplicateGroup> = by_size
-        .into_values()
-        .filter(|g| g.len() > 1)
-        .flat_map(|g| group_by_hash(g, Some(64 * 1024)))
-        .flat_map(|g| group_by_hash(g, None))
+    let candidates: Vec<Vec<Found>> = by_size.into_values().filter(|g| g.len() > 1).collect();
+    let total: usize = candidates.iter().map(Vec::len).sum();
+    let done = std::cell::Cell::new(0usize);
+    let tick = || {
+        done.set(done.get() + 1);
+        if done.get().is_multiple_of(20) {
+            progress(&format!("{} fichiers comparés sur {total}", done.get().min(total)));
+        }
+    };
+    let mut groups: Vec<DuplicateGroup> = candidates
+        .into_iter()
+        .flat_map(|g| group_by_hash(g, Some(64 * 1024), &tick))
+        .flat_map(|g| group_by_hash(g, None, &|| {}))
         .map(|g| {
             let mut files: Vec<FileEntry> = g.iter().map(|(p, m)| entry(p, m)).collect();
             files.sort_by(|a, b| b.modified.cmp(&a.modified));
@@ -152,15 +167,10 @@ pub fn duplicates(roots: &[PathBuf], min_bytes: u64) -> Vec<DuplicateGroup> {
 
 /// Envoie des fichiers à la corbeille, seulement s'ils sont dans les dossiers perso analysés.
 pub fn move_to_trash(roots: &[PathBuf], paths: &[String]) -> TrashReport {
-    let roots: Vec<PathBuf> = roots.iter().filter_map(|r| r.canonicalize().ok()).collect();
     let mut report = TrashReport::default();
     for p in paths {
         let path = Path::new(p);
-        let allowed = path
-            .canonicalize()
-            .ok()
-            .filter(|c| c.is_file() && roots.iter().any(|r| c.starts_with(r)));
-        let Some(real) = allowed else {
+        let Some(real) = inside_roots(roots, path) else {
             report.errors.push(format!("{p} : fichier introuvable ou hors des dossiers analysés"));
             continue;
         };
@@ -174,6 +184,32 @@ pub fn move_to_trash(roots: &[PathBuf], paths: &[String]) -> TrashReport {
         }
     }
     report
+}
+
+/// Chemin réel d'un fichier, seulement s'il est dans les dossiers perso analysés.
+fn inside_roots(roots: &[PathBuf], path: &Path) -> Option<PathBuf> {
+    let roots: Vec<PathBuf> = roots.iter().filter_map(|r| r.canonicalize().ok()).collect();
+    path.canonicalize().ok().filter(|c| c.is_file() && roots.iter().any(|r| c.starts_with(r)))
+}
+
+/// Ouvre l'Explorateur sur le dossier du fichier, avec le fichier sélectionné.
+pub fn reveal(roots: &[PathBuf], path: &str) -> Result<(), String> {
+    let path = Path::new(path);
+    inside_roots(roots, path).ok_or("Fichier introuvable")?;
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new("explorer.exe")
+            .raw_arg(format!("/select,\"{}\"", path.display()))
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        Err("Disponible uniquement sur Windows".into())
+    }
 }
 
 #[cfg(test)]
@@ -195,10 +231,10 @@ mod tests {
         write(&dir.path().join("sub/mid.zip"), &[1; 2000]);
         write(&dir.path().join(".hidden/huge.bin"), &[1; 9000]);
         let roots = vec![dir.path().to_path_buf()];
-        let found = large_files(&roots, 1000, 10);
+        let found = large_files(&roots, 1000, 10, &|_| {});
         let names: Vec<_> = found.iter().map(|f| f.name.as_str()).collect();
         assert_eq!(names, ["big.mov", "mid.zip"]);
-        assert_eq!(large_files(&roots, 1000, 1).len(), 1);
+        assert_eq!(large_files(&roots, 1000, 1, &|_| {}).len(), 1);
     }
 
     #[test]
@@ -211,7 +247,7 @@ mod tests {
         write(&dir.path().join("Downloads/logo (1).ai"), &logo);
         write(&dir.path().join("Projets/logo_final.ai"), &logo);
         write(&dir.path().join("Projets/presque.ai"), &other);
-        let groups = duplicates(&[dir.path().to_path_buf()], 1);
+        let groups = duplicates(&[dir.path().to_path_buf()], 1, &|_| {});
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0].files.len(), 3);
         assert_eq!(groups[0].bytes, 200_000);
