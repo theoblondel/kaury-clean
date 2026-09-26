@@ -81,9 +81,9 @@ Au premier lancement, Windows SmartScreen peut afficher « Windows a protégé v
 
 ### Publier une nouvelle version
 
-1. Change le numéro de version dans `package.json`, `src-tauri/Cargo.toml` et `src-tauri/tauri.conf.json`.
-2. Crée et pousse un tag : `git tag v0.6.0 && git push origin v0.6.0`.
-3. GitHub Actions compile l'installeur et publie la release toute seule.
+1. Change le numéro de version dans `package.json`, `src-tauri/Cargo.toml` et `src-tauri/tauri.conf.json`, puis pousse sur `main`.
+2. Sur GitHub, onglet **Releases** > **Draft a new release** > **Choose a tag** : tape `v0.6.0` et choisis **Create new tag**. Clique sur **Publish release**.
+3. GitHub Actions compile l'installeur et l'ajoute à la release, avec les instructions d'installation (environ 5 minutes).
 
 Chaque push sur `main` compile aussi l'installeur (onglet **Actions**, artefact `kaury-clean-windows`), pratique pour tester avant de publier.
 
