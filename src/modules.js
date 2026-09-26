@@ -7,6 +7,11 @@ const bindAdmin = (root) => $$("[data-admin]", root).forEach((b) => b.addEventLi
 
 // ---------- Vieux téléchargements ----------
 $("#olddlBtn").addEventListener("click", loadOldDownloads);
+// L'entretien intelligent a déjà fait la recherche : on affiche son résultat sans relancer.
+function showOldDownloads(files) {
+  $("#olddlMin").value = "180";
+  renderFileList($("#olddlList"), files.length ? [{ files }] : [], { preselect: false, onDone: loadOldDownloads });
+}
 async function loadOldDownloads() {
   const box = $("#olddlList");
   startSearch(box, "Recherche dans Téléchargements…");
@@ -261,4 +266,104 @@ function loadMaintenanceAdminState(box) {
   $$("[data-task]", box).forEach((row) => {
     if ($(".chip", row)?.textContent === "admin") $("[data-run]", row).disabled = true;
   });
+}
+
+// ---------- À propos et mises à jour ----------
+let updateInfo = null;
+let updating = false;
+
+viewLoaders.about = () => renderAbout();
+
+function renderAbout() {
+  const el = $("#v-about");
+  el.innerHTML = `
+    <div class="about-hero">
+      <div class="hero-art small" aria-hidden="true"><div class="float"><div class="tile3d"><span data-icon="logo-big"></span></div></div><div class="floor"></div></div>
+      <h1>Kaury Clean</h1>
+      <p class="lead">Version ${esc(appVersion || "—")}${elevated ? " · administrateur" : ""}</p>
+      <p class="about-text">Un nettoyeur de PC simple et beau, conçu et développé par <b>Kaury Studio</b>, studio créatif à Vevey : identité visuelle, sites web, vidéo, photo et réseaux sociaux.</p>
+      <div class="actions">
+        <button class="cta" data-link="site">Visiter kaury.studio</button>
+        <button class="cta ghost" data-link="behance">Behance</button>
+        <button class="cta ghost" data-link="instagram">Instagram</button>
+        <button class="cta ghost" data-link="email">hello@kaury.studio</button>
+      </div>
+    </div>
+    <div class="update-card" id="updateCard"></div>`;
+  paintIcons(el);
+  $$("[data-link]", el).forEach((b) => b.addEventListener("click", () => openLink(b.dataset.link)));
+  renderUpdateCard();
+}
+
+function openLink(link) {
+  invoke("open_link", { link }).catch((e) => toast(String(e)));
+}
+
+function renderUpdateCard(message) {
+  const box = $("#updateCard");
+  if (!box) return;
+  const u = updateInfo;
+  let body;
+  if (updating) {
+    body = `<div class="uc-text"><b>Mise à jour en cours</b><span class="progress" id="updateProgress">Téléchargement…</span></div><span class="spinner"></span>`;
+  } else if (u && u.available) {
+    body = `<div class="uc-text"><b>Kaury Clean ${esc(u.latest)} est disponible</b><span>Tu as la version ${esc(u.current)}${u.size ? ` · ${fmt(u.size)} à télécharger` : ""}. L'installeur remplace l'ancienne version, tes réglages sont gardés.</span></div>
+      <div class="uc-actions"><button class="cta ghost small" data-link="releases">Nouveautés</button><button class="cta small" data-install>Mettre à jour</button></div>`;
+  } else {
+    body = `<div class="uc-text"><b>${esc(message || (u ? "Tu as la dernière version" : "Mises à jour"))}</b><span>${u ? `Version ${esc(u.current)}.` : "Kaury Clean vérifie les nouvelles versions à chaque ouverture."}</span></div>
+      <div class="uc-actions"><button class="cta ghost small" data-check>Vérifier maintenant</button></div>`;
+  }
+  box.innerHTML = body;
+  $("[data-install]", box)?.addEventListener("click", installUpdate);
+  $("[data-link]", box)?.addEventListener("click", () => openLink("releases"));
+  $("[data-check]", box)?.addEventListener("click", async (e) => {
+    e.currentTarget.disabled = true;
+    e.currentTarget.textContent = "Vérification…";
+    try {
+      updateInfo = await invoke("check_update");
+      renderUpdateCard();
+      renderUpdateBanner();
+    } catch (err) {
+      renderUpdateCard(String(err));
+    }
+  });
+}
+
+// Au démarrage : on regarde discrètement s'il y a une nouvelle version. Pas de connexion, pas de message.
+async function checkUpdateQuietly() {
+  try {
+    updateInfo = await invoke("check_update");
+  } catch {
+    return;
+  }
+  renderUpdateBanner();
+  if ($("#updateCard")) renderUpdateCard();
+}
+
+function renderUpdateBanner() {
+  const available = !!(updateInfo && updateInfo.available);
+  $("#updateDot").hidden = !available;
+  const banner = $("#updateBanner");
+  banner.hidden = !available;
+  if (!available) return;
+  banner.innerHTML = `<span class="tile sm t-home" data-icon="sparkle"></span><span><b>Kaury Clean ${esc(updateInfo.latest)} est disponible.</b> Une nouvelle version avec des améliorations.</span><button class="cta small" data-install>Mettre à jour</button><button class="link" data-later>Plus tard</button>`;
+  paintIcons(banner);
+  $("[data-install]", banner).addEventListener("click", () => { show("about"); installUpdate(); });
+  $("[data-later]", banner).addEventListener("click", () => (banner.hidden = true));
+}
+
+async function installUpdate() {
+  if (updating) return;
+  updating = true;
+  if (!$("#updateCard")) show("about");
+  renderUpdateCard();
+  progressEl = $("#updateProgress");
+  try {
+    await invoke("install_update");
+    // L'installeur est lancé : l'appli se ferme toute seule.
+  } catch (e) {
+    updating = false;
+    progressEl = null;
+    renderUpdateCard("La mise à jour n'a pas pu se faire : " + e);
+  }
 }

@@ -47,7 +47,11 @@
 | **Désactiver la veille prolongée** | Supprime `hiberfil.sys` (souvent plusieurs Go). Réactivable avec `powercfg /h on`. |
 | **Vider le cache DNS**, **Redémarrer l'Explorateur**, **Rafraîchir les icônes**, **Réparer le Microsoft Store** | Les petites réparations du quotidien. |
 
-L'accueil affiche l'état du PC (disque, mémoire, applis au démarrage). Les tâches longues affichent leur pourcentage, et les recherches peuvent être arrêtées. L'appli garde le compte de l'espace libéré depuis l'installation.
+**Entretien intelligent** : un clic analyse tout (fichiers inutiles, démarrage, mémoire, disque, applis, vieux téléchargements) et présente un bilan en cartes. « Lancer » nettoie ce qui est sûr et vide le cache DNS ; le reste est proposé à l'examen. Les tâches longues affichent leur pourcentage, et les recherches peuvent être arrêtées.
+
+**Mises à jour** : à chaque ouverture, Kaury Clean regarde s'il existe une release plus récente sur GitHub. Si oui, un bouton « Mettre à jour » télécharge l'installeur et le lance ; il remplace l'ancienne version.
+
+**À propos** : un clic sur le logo ou sur « Kaury Clean » en bas de la barre latérale ouvre la page du studio, avec les liens vers kaury.studio, Behance et Instagram. L'appli garde le compte de l'espace libéré depuis l'installation.
 
 #### Et la RAM ?
 

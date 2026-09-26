@@ -7,6 +7,7 @@ mod memory;
 mod organize;
 mod startup;
 mod uninstall;
+mod update;
 
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
@@ -207,6 +208,44 @@ async fn run_maintenance(app: AppHandle, id: String) -> Result<maintenance::Task
     blocking(move || maintenance::run(&id, &reporter(app))).await?
 }
 
+// ---------- Liens et mises à jour ----------
+
+/// Les seules adresses que l'appli sait ouvrir.
+#[tauri::command]
+fn open_link(link: String) -> Result<(), String> {
+    let url = match link.as_str() {
+        "site" => "https://kaury.studio",
+        "behance" => "https://www.behance.net/kaurystudio",
+        "instagram" => "https://www.instagram.com/kaury.studio/",
+        "email" => "mailto:hello@kaury.studio",
+        "releases" => "https://github.com/theoblondel/kaury-clean/releases",
+        _ => return Err("Lien inconnu".into()),
+    };
+    elevation::shell_open(url, "")
+}
+
+#[tauri::command]
+async fn check_update(app: AppHandle) -> Result<update::UpdateInfo, String> {
+    let current = app.package_info().version.to_string();
+    blocking(move || update::check(&current)).await?
+}
+
+/// Télécharge la nouvelle version, lance son installeur puis ferme l'appli pour qu'il puisse la remplacer.
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    let current = app.package_info().version.to_string();
+    let emitter = app.clone();
+    let path = blocking(move || {
+        update::download(&current, &|pct| {
+            let _ = emitter.emit("progress", format!("Téléchargement · {pct} %"));
+        })
+    })
+    .await??;
+    update::launch_installer(&path)?;
+    app.exit(0);
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -214,6 +253,9 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             app_info,
+            open_link,
+            check_update,
+            install_update,
             relaunch_as_admin,
             disk_info,
             scan_junk,

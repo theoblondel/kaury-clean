@@ -2,6 +2,7 @@
 
 const invoke = window.__TAURI__ ? window.__TAURI__.core.invoke : demoInvoke;
 let elevated = false;
+let appVersion = "";
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -63,11 +64,57 @@ const locked = (item) => item.needs_admin && !elevated;
 
 const sumChecked = (root) => $$("input[type=checkbox]:checked", root).reduce((a, i) => a + Number(i.dataset.bytes || 0), 0);
 
+// ---------- Icônes ----------
+// Pictos dessinés en SVG, posés sur les tuiles colorées (barre latérale, accueil, cartes).
+const ICONS = {
+  sparkle: '<svg viewBox="0 0 24 24"><path d="M12 2.5l2.4 7.1 7.1 2.4-7.1 2.4L12 21.5l-2.4-7.1L2.5 12l7.1-2.4z"/></svg>',
+  broom: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 3l-6.5 6.5"/><path d="M10.5 8.5l5 5-3 3.5c-2 2-5.5 3-9 3 0-3.5 1-7 3-9z"/><path d="M7 16l-1.5 1.5"/></svg>',
+  bolt: '<svg viewBox="0 0 24 24"><path d="M13.5 2L4 13.5h6.5L9.5 22 20 9.5h-6.5z"/></svg>',
+  grid: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2.5"/><rect x="13" y="3" width="8" height="8" rx="2.5"/><rect x="3" y="13" width="8" height="8" rx="2.5"/><rect x="13" y="13" width="8" height="8" rx="4"/></svg>',
+  folder: '<svg viewBox="0 0 24 24"><path d="M2.5 6.5A2.5 2.5 0 0 1 5 4h4.2l2.3 2.3H19a2.5 2.5 0 0 1 2.5 2.5v8.7A2.5 2.5 0 0 1 19 20H5a2.5 2.5 0 0 1-2.5-2.5z"/></svg>',
+  wrench: '<svg viewBox="0 0 24 24"><path d="M21 7.2a5.5 5.5 0 0 1-7.4 5.2l-7 7a2.1 2.1 0 0 1-3-3l7-7A5.5 5.5 0 0 1 16.8 3l-3.1 3.1.9 2.4 2.4.9z"/></svg>',
+  disk: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3"/><circle cx="17" cy="12" r="1.6" fill="currentColor" style="fill:var(--tile-ink,#1C1A1A)"/></svg>',
+  logo: '<svg viewBox="0 0 24 24"><path d="M11 4.5c.5 4.3 2.2 6 6.5 6.5-4.3.5-6 2.2-6.5 6.5-.5-4.3-2.2-6-6.5-6.5 4.3-.5 6-2.2 6.5-6.5z"/><path class="spark" d="M17.6 2.8c.2 1.6.8 2.2 2.4 2.4-1.6.2-2.2.8-2.4 2.4-.2-1.6-.8-2.2-2.4-2.4 1.6-.2 2.2-.8 2.4-2.4z"/></svg>',
+  "logo-big": '<svg viewBox="0 0 24 24"><path d="M11 4.5c.5 4.3 2.2 6 6.5 6.5-4.3.5-6 2.2-6.5 6.5-.5-4.3-2.2-6-6.5-6.5 4.3-.5 6-2.2 6.5-6.5z"/><path class="spark" d="M17.6 2.8c.2 1.6.8 2.2 2.4 2.4-1.6.2-2.2.8-2.4 2.4-.2-1.6-.8-2.2-2.4-2.4 1.6-.2 2.2-.8 2.4-2.4z"/></svg>',
+};
+function paintIcons(root = document) {
+  $$("[data-icon]", root).forEach((el) => { if (!el.firstChild) el.innerHTML = ICONS[el.dataset.icon] || ""; });
+}
+paintIcons();
+
 // ---------- Navigation ----------
-$$("nav button").forEach((b) => b.addEventListener("click", () => show(b.dataset.view)));
+// Six sections dans la barre latérale ; certaines ont des onglets en haut de page.
+const SECTIONS = {
+  home: [["home", "Entretien intelligent"]],
+  clean: [["system", "Fichiers système"], ["apps", "Applications"], ["browsers", "Navigateurs"], ["trash", "Corbeille"]],
+  perf: [["memory", "Mémoire vive"], ["startup", "Démarrage"]],
+  apps: [["uninstall", "Désinstaller"]],
+  files: [["large", "Gros fichiers"], ["dupes", "Doublons"], ["olddl", "Vieux téléchargements"], ["organize", "Ranger"]],
+  repair: [["maintenance", "Maintenance"]],
+  about: [["about", "À propos"]],
+};
+const lastTab = {};
+const sectionOf = (view) => Object.keys(SECTIONS).find((s) => SECTIONS[s].some(([v]) => v === view));
+
+$$("nav [data-section]").forEach((b) => b.addEventListener("click", () => {
+  const sec = b.dataset.section;
+  show(lastTab[sec] || SECTIONS[sec][0][0]);
+}));
+
 function show(view) {
-  $$("nav button").forEach((b) => b.setAttribute("aria-current", String(b.dataset.view === view)));
+  const sec = sectionOf(view);
+  lastTab[sec] = view;
+  $$("nav [data-section]").forEach((b) => b.setAttribute("aria-current", String(b.dataset.section === sec)));
   $$(".view").forEach((s) => (s.hidden = s.id !== "v-" + view));
+  const tabs = SECTIONS[sec];
+  const bar = $("#tabs");
+  bar.hidden = tabs.length < 2;
+  bar.innerHTML = tabs.map(([v, label]) => {
+    const size = junk && GROUPS[v] && groupTotal(v) > 0 ? `<span class="tab-size">${fmt(groupTotal(v))}</span>` : "";
+    return `<button role="tab" aria-selected="${v === view}" data-tab="${v}">${esc(label)}${size}</button>`;
+  }).join("");
+  $$("[data-tab]", bar).forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
+  $("main").scrollTop = 0;
   if (view === "startup" && !startupLoaded) loadStartup();
   viewLoaders[view]?.();
 }
@@ -75,210 +122,206 @@ function show(view) {
 const viewLoaders = {};
 
 // ---------- Disque ----------
+let diskInfo = null;
 async function refreshDisk() {
   try {
     const d = await invoke("disk_info");
     if (!d) return;
+    diskInfo = d;
     $("#disk").hidden = false;
-    $("#diskName").textContent = `Disque local (${d.name})`;
+    $("#diskName").textContent = `Disque ${d.name}`;
     $("#diskFree").textContent = `${fmt(d.free)} libres`;
-    $("#diskTotal").textContent = fmt(d.total);
     $("#diskBar").style.width = (((d.total - d.free) / d.total) * 100).toFixed(1) + "%";
   } catch (e) { console.error(e); }
 }
 
-// ---------- État du PC (accueil) ----------
-// Trois repères sous l'anneau : disque, mémoire, démarrage. Chacun ouvre son module.
-async function renderHealth() {
-  const box = $("#health");
-  const [disk, mem, startup] = await Promise.all([
-    invoke("disk_info").catch(() => null),
-    invoke("memory_status").catch(() => null),
-    invoke("list_startup_apps").catch(() => null),
-  ]);
-  const tiles = [];
-  if (disk) {
-    const used = Math.round(((disk.total - disk.free) / disk.total) * 100);
-    tiles.push({ go: "large", label: "Disque", value: `${fmt(disk.free)} libres`, level: used >= 90 ? "high" : used >= 80 ? "warn" : "ok" });
-  }
-  if (mem) {
-    const pct = Math.round((mem.used / mem.total) * 100);
-    tiles.push({ go: "memory", label: "Mémoire", value: `${pct} % utilisés`, level: pct >= 85 ? "high" : pct >= 70 ? "warn" : "ok" });
-  }
-  if (startup) {
-    const on = startup.filter((a) => a.enabled).length;
-    tiles.push({ go: "startup", label: "Démarrage", value: `${on} appli${on > 1 ? "s" : ""}`, level: on >= 12 ? "high" : on >= 8 ? "warn" : "ok" });
-  }
-  box.innerHTML = tiles.map((t) => `<button class="tile ${t.level}" data-go="${t.go}"><span class="dot"></span><span><small>${esc(t.label)}</small>${esc(t.value)}</span></button>`).join("");
-  $$("[data-go]", box).forEach((b) => b.addEventListener("click", () => show(b.dataset.go)));
-  box.hidden = !tiles.length || !["idle", "done"].includes(scanState);
-}
-
-// ---------- Anneau animé ----------
+// ---------- Anneau animé (pendant l'analyse) ----------
 const cv = $("#orb"), ctx = cv.getContext("2d");
-let prog = 0, spin = 0, ringMode = "idle";
+let prog = 0, spin = 0, ringMode = "spin";
 function drawOrb() {
-  const W = cv.width, c = W / 2;
-  ctx.clearRect(0, 0, W, W);
-  const g = ctx.createRadialGradient(c, c, 20, c, c, c);
-  g.addColorStop(0, "rgba(245,110,46,.35)"); g.addColorStop(0.6, "rgba(245,110,46,.08)"); g.addColorStop(1, "rgba(245,110,46,0)");
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c, c, c, 0, 7); ctx.fill();
-  ctx.lineWidth = 14; ctx.lineCap = "round";
-  ctx.strokeStyle = "#2A2523"; ctx.beginPath(); ctx.arc(c, c, 165, 0, Math.PI * 2); ctx.stroke();
-  const gr = ctx.createLinearGradient(0, 0, W, W); gr.addColorStop(0, "#FF9A5C"); gr.addColorStop(1, "#F56E2E");
-  ctx.strokeStyle = gr; ctx.beginPath();
-  if (ringMode === "spin") ctx.arc(c, c, 165, spin, spin + 1.1);
-  else if (ringMode === "idle") ctx.arc(c, c, 165, spin, spin + 0.6);
-  else ctx.arc(c, c, 165, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * prog);
-  ctx.stroke();
-  for (let i = 0; i < 48; i++) {
-    const a = (i / 48) * Math.PI * 2 + spin * 0.3;
-    ctx.fillStyle = ringMode === "progress" && i / 48 < prog ? "rgba(241,232,203,.6)" : "rgba(241,232,203,.12)";
-    ctx.beginPath(); ctx.arc(c + Math.cos(a) * 192, c + Math.sin(a) * 192, 2.5, 0, 7); ctx.fill();
+  if (!$("#careScan").hidden) {
+    const W = cv.width, c = W / 2;
+    ctx.clearRect(0, 0, W, W);
+    const g = ctx.createRadialGradient(c, c, 20, c, c, c);
+    g.addColorStop(0, "rgba(245,110,46,.35)"); g.addColorStop(0.6, "rgba(245,110,46,.08)"); g.addColorStop(1, "rgba(245,110,46,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c, c, c, 0, 7); ctx.fill();
+    ctx.lineWidth = 14; ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(241,232,203,.08)"; ctx.beginPath(); ctx.arc(c, c, 165, 0, Math.PI * 2); ctx.stroke();
+    const gr = ctx.createLinearGradient(0, 0, W, W); gr.addColorStop(0, "#FFB27D"); gr.addColorStop(1, "#F56E2E");
+    ctx.strokeStyle = gr; ctx.beginPath();
+    if (ringMode === "spin") ctx.arc(c, c, 165, spin, spin + 1.1);
+    else ctx.arc(c, c, 165, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * prog);
+    ctx.stroke();
+    for (let i = 0; i < 48; i++) {
+      const a = (i / 48) * Math.PI * 2 + spin * 0.3;
+      ctx.fillStyle = "rgba(241,232,203,.14)";
+      ctx.beginPath(); ctx.arc(c + Math.cos(a) * 192, c + Math.sin(a) * 192, 2.5, 0, 7); ctx.fill();
+    }
+    if (!reduceMotion) spin += 0.07;
   }
-  if (!reduceMotion) spin += ringMode === "spin" ? 0.08 : 0.02;
   requestAnimationFrame(drawOrb);
 }
 drawOrb();
 const orbVal = (big, small) => ($("#orbVal").innerHTML = `${esc(big)}<small>${esc(small)}</small>`);
 
-// ---------- Fichiers inutiles (analyse intelligente + 3 modules) ----------
+// ---------- Entretien intelligent ----------
+// Une analyse regarde tout : fichiers inutiles, mémoire, démarrage, applis et vieux téléchargements.
+// « Lancer » nettoie ce qui est sûr et vide le cache DNS ; le reste est proposé à l'examen.
 let junk = null; // dernier résultat de scan_junk
 const GROUPS = { system: "Fichiers système", apps: "Applications", browsers: "Navigateurs", trash: "Corbeille" };
-let scanState = "idle";
+let care = { state: "idle" };
 
-$("#scanBtn").addEventListener("click", () => {
-  if (scanState === "idle" || scanState === "done") runScan();
-  else if (scanState === "found") runClean($$("#results input:checked").map((i) => i.value), "scan");
+const groupTotal = (group) => (junk || []).filter((i) => i.group === group && !locked(i)).reduce((a, i) => a + i.bytes, 0);
+
+function careView(state) {
+  care.state = state;
+  $("#careIntro").hidden = state !== "idle";
+  $("#careScan").hidden = !["scanning", "running"].includes(state);
+  $("#careResults").hidden = !["results", "done"].includes(state);
+  $("#careReset").hidden = state !== "results";
+  const btn = $("#careBtn");
+  btn.textContent = { idle: "Analyser", scanning: "Analyse", results: "Lancer", running: "En cours", done: "Terminé" }[state];
+  btn.disabled = state === "scanning" || state === "running";
+  btn.classList.toggle("busy", btn.disabled);
+}
+
+$("#careBtn").addEventListener("click", () => {
+  if (care.state === "idle") runCare();
+  else if (care.state === "results") runCareActions();
+  else if (care.state === "done") { careView("idle"); renderStats(); }
 });
-$("#resetBtn").addEventListener("click", runScan);
+$("#careReset").addEventListener("click", () => { careView("idle"); renderStats(); });
 
-async function runScan() {
-  scanState = "scanning";
+async function runCare() {
+  careView("scanning");
   ringMode = "spin";
-  $("#scanBtn").disabled = true; $("#scanBtn").textContent = "Analyse…";
-  $("#resetBtn").hidden = true; $("#results").hidden = true; $("#scanText").hidden = false;
   $("#scanTitle").textContent = "Analyse en cours";
-  $("#scanText").textContent = "On passe en revue les caches, les fichiers temporaires et la corbeille.";
-  $("#stats").hidden = true;
-  $("#health").hidden = true;
   orbVal("…", "analyse");
-  progressEl = $("#scanText");
+  progressEl = $("#careProgress");
+  progressEl.textContent = "Préparation";
+  const soft = (p) => p.catch(() => null);
   try {
-    junk = await invoke("scan_junk");
-    progressEl = null;
+    const [j, mem, startup, installed, oldFiles] = await Promise.all([
+      invoke("scan_junk"),
+      soft(invoke("memory_status")),
+      soft(invoke("list_startup_apps")),
+      soft(invoke("list_installed_apps")),
+      soft(invoke("find_old_downloads", { minDays: 180 })),
+    ]);
+    junk = j;
+    care = { ...care, mem, startup, installed, oldFiles, includeTrash: true };
   } catch (e) {
     progressEl = null;
-    scanState = "idle"; ringMode = "idle";
-    $("#scanBtn").disabled = false; $("#scanBtn").textContent = "Analyser";
-    $("#scanTitle").textContent = "L'analyse n'a pas pu aboutir.";
-    $("#scanText").textContent = String(e);
+    careView("idle");
+    toast("L'analyse n'a pas pu aboutir : " + e);
     return;
   }
+  progressEl = null;
   renderJunkEverywhere();
-  showScanResults();
+  await refreshDisk();
+  careView("results");
+  renderBento();
 }
 
-function groupTotal(group) {
-  return (junk || []).filter((i) => i.group === group && !locked(i)).reduce((a, i) => a + i.bytes, 0);
+// Ce que « Lancer » va nettoyer : tout ce qui est sûr et accessible, corbeille selon ton choix.
+function careIds() {
+  return (junk || []).filter((i) => i.bytes > 0 && !locked(i) && (care.includeTrash || i.group !== "trash")).map((i) => i.id);
+}
+const careBytes = () => (junk || []).filter((i) => careIds().includes(i.id)).reduce((a, i) => a + i.bytes, 0);
+
+function card({ cls = "", kicker, icon, tile, big, sub, status, action, extra = "" }) {
+  return `<div class="bcard ${cls}">
+    <span class="bcard-art tile ${tile}" data-icon="${icon}"></span>
+    <div class="kicker">${esc(kicker)}</div>
+    <div class="bcard-body"><div class="big">${big}</div><div class="sub">${sub}</div>${extra}</div>
+    <div class="bcard-foot">
+      ${status ? `<span class="status ${status.kind}">${status.kind === "ok" ? "✓" : "•"} ${esc(status.text)}</span>` : "<span></span>"}
+      ${action ? `<button class="chip-btn" data-go="${action.go}">${esc(action.label)}</button>` : ""}
+    </div>
+  </div>`;
 }
 
-function showScanResults() {
-  scanState = "found";
-  ringMode = "progress"; prog = 1;
-  $("#scanTitle").textContent = "Voilà ce qu'on peut libérer.";
-  $("#scanText").hidden = true;
-  const r = $("#results");
-  r.hidden = false;
-  r.innerHTML = Object.entries(GROUPS).map(([g, title]) => {
-    const items = junk.filter((i) => i.group === g && i.bytes > 0 && !locked(i));
-    if (!items.length) return "";
-    const warn = items.find((i) => i.running);
-    return `<label class="res"><input type="checkbox" checked value="${esc(g)}" data-bytes="${groupTotal(g)}">
-      <span class="txt"><div class="t">${esc(title)}${warn ? `<span class="chip warn">${esc(warn.running)} ouvert</span>` : ""}</div>
-      <div class="d">${items.length} élément${items.length > 1 ? "s" : ""} · ${items.reduce((a, i) => a + i.files, 0).toLocaleString("fr-CH")} fichiers</div></span>
-      <span class="s">${fmt(groupTotal(g))}</span></label>`;
-  }).join("");
-  const update = () => {
-    const bytes = sumChecked(r);
-    orbVal(fmt(bytes), "à libérer");
-    $("#scanBtn").disabled = bytes === 0;
-  };
-  if (!r.innerHTML.trim()) {
-    const adminOnly = junk.filter(locked).reduce((a, i) => a + i.bytes, 0);
-    if (adminOnly > 0) {
-      r.innerHTML = `<div class="admin-note">${fmt(adminOnly)} à libérer dans les dossiers protégés de Windows.<button class="link" data-admin>Relancer en administrateur</button></div>`;
-      $("[data-admin]", r).addEventListener("click", relaunchAsAdmin);
-    }
-    $("#scanTitle").textContent = "Ton PC est déjà tout propre.";
-    orbVal("0 o", "à libérer");
-    scanState = "done";
-    $("#scanBtn").disabled = false; $("#scanBtn").textContent = "Nouvelle analyse";
-    return;
-  }
-  const adminBytes = junk.filter(locked).reduce((a, i) => a + i.bytes, 0);
-  if (adminBytes > 0) {
-    r.insertAdjacentHTML("beforeend", `<div class="admin-note">+ ${fmt(adminBytes)} dans les dossiers protégés de Windows.<button class="link" data-admin>Relancer en administrateur</button></div>`);
-    $("[data-admin]", r).addEventListener("click", relaunchAsAdmin);
-  }
-  $$("input", r).forEach((i) => i.addEventListener("change", update));
-  update();
-  $("#scanBtn").textContent = "Nettoyer";
-  $("#resetBtn").hidden = false;
+function renderBento() {
+  const done = care.state === "done";
+  const r = care.report;
+  const startupOn = care.startup ? care.startup.filter((a) => a.enabled).length : null;
+  const memPct = care.mem ? Math.round((care.mem.used / care.mem.total) * 100) : null;
+  const appsBytes = care.installed ? care.installed.reduce((a, x) => a + x.bytes, 0) : 0;
+  const old = care.oldFiles || [];
+  const oldBytes = old.reduce((a, f) => a + f.bytes, 0);
+  const trash = (junk || []).find((i) => i.group === "trash");
+  const adminBytes = (junk || []).filter(locked).reduce((a, i) => a + i.bytes, 0);
+  const running = (junk || []).filter((i) => i.running && i.bytes > 0).map((i) => i.running);
+
+  $("#careTitle").textContent = done ? "Bravo ! Ton PC est en pleine forme." : "Voilà ce qu'on a trouvé.";
+  $("#careLead").textContent = done
+    ? (r.skipped ? `${r.skipped.toLocaleString("fr-CH")} fichiers gardés : une appli les utilise ou ils ont moins de 24 h.` : "Tout ce qui pouvait partir est parti.")
+    : "Clique sur Lancer pour nettoyer. Le reste t'attend dans chaque section.";
+
+  const cleanExtra = done ? "" : `
+    ${trash && trash.bytes > 0 ? `<label class="mini-check"><input type="checkbox" id="careTrash" ${care.includeTrash ? "checked" : ""}> Vider aussi la corbeille (${fmt(trash.bytes)})</label>` : ""}
+    ${running.length ? `<div class="mini-note">${esc([...new Set(running)].join(", "))} ${new Set(running).size > 1 ? "ouverts" : "ouvert"} : une partie restera</div>` : ""}
+    ${adminBytes > 0 ? `<button class="link mini" data-admin>+ ${fmt(adminBytes)} avec les droits administrateur</button>` : ""}`;
+
+  const cards = [
+    card({ cls: "wide", kicker: "Nettoyage", icon: "broom", tile: "t-clean",
+      big: done ? fmt(r.freed) : fmt(careBytes()), sub: done ? "libérés" : "de fichiers inutiles",
+      status: done ? { kind: "ok", text: "Nettoyé" } : null, action: done ? null : { go: "system", label: "Détails" }, extra: cleanExtra }),
+    card({ kicker: "Performances", icon: "bolt", tile: "t-perf",
+      big: startupOn != null ? `${startupOn} appli${startupOn > 1 ? "s" : ""}` : "—", sub: `au démarrage${memPct != null ? ` · mémoire ${memPct} %` : ""}`,
+      status: done ? (care.dns ? { kind: "ok", text: "Cache DNS vidé" } : null) : null, action: { go: "startup", label: "Voir" } }),
+    card({ kicker: "Espace disque", icon: "disk", tile: "t-repair",
+      big: diskInfo ? fmt(diskInfo.free) : "—", sub: diskInfo ? `libres sur ${fmt(diskInfo.total)}` : "",
+      status: done ? { kind: "ok", text: "Mis à jour" } : null,
+      extra: diskInfo ? `<div class="bar"><i style="width:${(((diskInfo.total - diskInfo.free) / diskInfo.total) * 100).toFixed(1)}%"></i></div>` : "" }),
+    card({ cls: "half", kicker: "Applications", icon: "grid", tile: "t-apps",
+      big: care.installed ? `${care.installed.length} applis` : "—", sub: appsBytes ? `${fmt(appsBytes)} au total` : "installées",
+      status: done ? { kind: "ok", text: "Vérifiées" } : null, action: { go: "uninstall", label: "Examiner" } }),
+    card({ cls: "half", kicker: "Mes fichiers", icon: "folder", tile: "t-files",
+      big: `${old.length} fichier${old.length > 1 ? "s" : ""}`, sub: old.length ? `oubliés dans Téléchargements · ${fmt(oldBytes)}` : "rien d'oublié dans Téléchargements",
+      status: done && old.length ? { kind: "todo", text: "À examiner" } : null, action: { go: "olddl", label: "Examiner" } }),
+  ];
+  const box = $("#bento");
+  box.innerHTML = cards.join("");
+  paintIcons(box);
+  $$("[data-go]", box).forEach((b) => b.addEventListener("click", () => {
+    show(b.dataset.go);
+    if (b.dataset.go === "olddl" && care.oldFiles) showOldDownloads(care.oldFiles);
+  }));
+  $("#careTrash")?.addEventListener("change", (e) => { care.includeTrash = e.target.checked; renderBento(); });
+  $("[data-admin]", box)?.addEventListener("click", relaunchAsAdmin);
 }
 
-async function runClean(selection, from) {
-  // selection : des groupes (depuis l'analyse) ou des identifiants (depuis un module)
-  const ids = from === "scan"
-    ? junk.filter((i) => selection.includes(i.group) && !locked(i)).map((i) => i.id)
-    : selection;
-  if (!ids.length) return;
-  const expected = junk.filter((i) => ids.includes(i.id)).reduce((a, i) => a + i.bytes, 0);
-
-  scanState = "cleaning";
-  show("scan");
-  $("#results").hidden = true; $("#resetBtn").hidden = true;
-  $("#scanBtn").disabled = true; $("#scanBtn").textContent = "Nettoyage…";
-  $("#health").hidden = true;
+async function runCareActions() {
+  const ids = careIds();
+  careView("running");
   $("#scanTitle").textContent = "Nettoyage en cours";
-  ringMode = "spin";
-  orbVal(fmt(expected), "à libérer");
-  $("#scanText").hidden = false;
-  $("#scanText").textContent = "";
-  progressEl = $("#scanText");
-
-  let report;
+  orbVal(fmt(careBytes()), "à libérer");
+  progressEl = $("#careProgress");
+  let report = { freed: 0, removed: 0, skipped: 0 };
   try {
-    report = await invoke("clean_junk", { ids });
-    progressEl = null;
+    if (ids.length) report = await invoke("clean_junk", { ids });
   } catch (e) {
-    progressEl = null;
     toast("Le nettoyage a échoué : " + e);
-    scanState = "done"; ringMode = "idle";
-    $("#scanBtn").disabled = false; $("#scanBtn").textContent = "Nouvelle analyse";
-    return;
   }
-  ringMode = "progress"; prog = 1;
-  orbVal(fmt(report.freed), "libérés");
-  $("#scanTitle").textContent = "C'est tout propre.";
-  $("#scanText").hidden = false;
-  $("#scanText").textContent = report.skipped
-    ? `${report.removed.toLocaleString("fr-CH")} fichiers supprimés. ${report.skipped.toLocaleString("fr-CH")} fichiers gardés, parce qu'une appli les utilise ou qu'ils ont moins de 24 h. Ferme tes navigateurs et relance pour aller plus loin.`
-    : `${report.removed.toLocaleString("fr-CH")} fichiers supprimés.`;
-  scanState = "done";
-  $("#scanBtn").disabled = false; $("#scanBtn").textContent = "Nouvelle analyse";
+  const dns = await invoke("run_maintenance", { id: "flush_dns" }).then((x) => x.ok).catch(() => false);
+  progressEl = null;
+  care = { ...care, report, dns };
   addFreed(report.freed);
-  renderHealth();
-  junk = null;
-  renderJunkEverywhere();
-  refreshDisk();
+  await refreshDisk();
+  careView("done");
+  renderBento();
+  // Les chiffres des sections se remettent à jour en arrière-plan.
+  invoke("scan_junk").then((j) => { junk = j; renderJunkEverywhere(); }).catch(() => {});
 }
 
+// ---------- Sections Nettoyage (4 onglets) ----------
 function renderJunkEverywhere() {
-  for (const g of Object.keys(GROUPS)) {
-    $(`[data-size="${g}"]`).textContent = junk ? fmt(groupTotal(g)) : "";
-    renderGroupView(g);
-  }
+  const total = Object.keys(GROUPS).reduce((a, g) => a + groupTotal(g), 0);
+  $('[data-size="clean"]').textContent = junk && total ? fmt(total) : "";
+  for (const g of Object.keys(GROUPS)) renderGroupView(g);
+  const current = $$(".view").find((v) => !v.hidden);
+  if (current && GROUPS[current.id.slice(2)]) show(current.id.slice(2)); // rafraîchit les tailles des onglets
 }
 
 function renderGroupView(g) {
@@ -286,7 +329,7 @@ function renderGroupView(g) {
   const head = `<div class="head"><div><h2>${esc(el.dataset.title)}</h2><p>${esc(el.dataset.desc)}</p></div></div>`;
   if (!junk) {
     el.innerHTML = head + `<div class="empty">Lance une analyse pour voir ce qui peut partir.<button class="cta small" data-scan>Analyser</button></div>`;
-    $("[data-scan]", el).addEventListener("click", () => { show("scan"); runScan(); });
+    $("[data-scan]", el).addEventListener("click", scanJunkOnly);
     return;
   }
   const items = junk.filter((i) => i.group === g);
@@ -307,9 +350,35 @@ function renderGroupView(g) {
     $("[data-clean]", el).disabled = bytes === 0;
   };
   $$("input", el).forEach((i) => i.addEventListener("change", update));
-  $("[data-clean]", el).addEventListener("click", () => runClean($$("input:checked", el).map((i) => i.value), g));
+  $("[data-clean]", el).addEventListener("click", (e) => cleanFromSection(e.currentTarget, $$("input:checked", el).map((i) => i.value)));
   $("[data-admin]", el)?.addEventListener("click", relaunchAsAdmin);
   update();
+}
+
+async function scanJunkOnly() {
+  $$(".view:not([hidden]) [data-scan]").forEach((b) => { b.disabled = true; b.textContent = "Analyse…"; });
+  try {
+    junk = await invoke("scan_junk");
+  } catch (e) {
+    toast("L'analyse a échoué : " + e);
+  }
+  renderJunkEverywhere();
+}
+
+// Nettoyage depuis un onglet : on reste sur place, puis on réanalyse pour mettre les chiffres à jour.
+async function cleanFromSection(btn, ids) {
+  if (!ids.length) return;
+  btn.disabled = true;
+  btn.textContent = "Nettoyage…";
+  try {
+    const r = await invoke("clean_junk", { ids });
+    addFreed(r.freed);
+    toast(`${fmt(r.freed)} libérés` + (r.skipped ? ` · ${r.skipped.toLocaleString("fr-CH")} fichiers gardés (utilisés ou trop récents)` : ""));
+  } catch (e) {
+    toast("Le nettoyage a échoué : " + e);
+  }
+  refreshDisk();
+  await scanJunkOnly();
 }
 
 // Affiche « recherche en cours » avec un bouton Arrêter. Renvoie une fonction d'affichage d'erreur.
@@ -474,12 +543,14 @@ document.addEventListener("contextmenu", (e) => {
   try {
     const info = await invoke("app_info");
     elevated = info.elevated;
-    $("#version").textContent = `v${info.version}${elevated ? " · administrateur" : ""}`;
+    appVersion = info.version;
+    $("#version").textContent = `v${info.version}${elevated ? " · admin" : ""}`;
   } catch (e) { console.error(e); }
   renderJunkEverywhere();
   renderStats();
   refreshDisk();
-  renderHealth();
+  careView("idle");
+  checkUpdateQuietly();
 })();
 
 // ---------- Mode démo (ouverture dans un navigateur, sans Tauri) ----------
@@ -494,7 +565,10 @@ function demoInvoke(cmd, args) {
     return { path, name: path.slice(i + 1), folder: path.slice(0, i), bytes, modified: now - daysOld * day };
   };
   switch (cmd) {
-    case "app_info": return wait(20, { version: "0.5.0", elevated: false });
+    case "app_info": return wait(20, { version: "0.6.0", elevated: false });
+    case "check_update": return wait(600, { available: true, current: "0.6.0", latest: "0.7.0", notes: "", size: 6.4 * MB, page: "" });
+    case "install_update": return wait(1500, null).then(() => Promise.reject("Mode démo : la mise à jour se fait seulement dans l'appli"));
+    case "open_link": return Promise.reject("Mode démo : les liens s'ouvrent seulement dans l'appli");
     case "relaunch_as_admin": return Promise.reject("Mode démo");
     case "reveal_file": return Promise.reject("Mode démo : l'Explorateur s'ouvre seulement dans l'appli");
     case "disk_info": return wait(50, { name: "C:", total: 476 * GB, free: 61.2 * GB });

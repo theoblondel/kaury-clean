@@ -11,54 +11,63 @@
 </head>
 <body>
   <div class="app">
-    <nav aria-label="Modules">
-      <div class="brand"><img src="logo.svg" alt="" width="26" height="26">kaury<em>.</em>clean</div>
-      <div class="group">
-        <button data-view="scan" aria-current="true"><span class="ic">&#x2726;</span>Analyse intelligente</button>
+    <nav aria-label="Sections">
+      <button class="brand" data-section="about" title="À propos de Kaury Clean"><img src="logo.svg" alt="" width="28" height="28"><span>kaury<em>.</em>clean</span></button>
+      <div class="sections">
+        <button data-section="home" aria-current="true"><span class="tile t-home" data-icon="sparkle"></span>Entretien intelligent</button>
+        <button data-section="clean"><span class="tile t-clean" data-icon="broom"></span>Nettoyage<span class="size" data-size="clean"></span></button>
+        <button data-section="perf"><span class="tile t-perf" data-icon="bolt"></span>Performances</button>
+        <button data-section="apps"><span class="tile t-apps" data-icon="grid"></span>Applications</button>
+        <button data-section="files"><span class="tile t-files" data-icon="folder"></span>Mes fichiers</button>
+        <button data-section="repair"><span class="tile t-repair" data-icon="wrench"></span>Réparation</button>
       </div>
-      <div class="group">
-        <h4>Nettoyage</h4>
-        <button data-view="system"><span class="ic">&#x2699;</span>Fichiers système<span class="size" data-size="system"></span></button>
-        <button data-view="apps"><span class="ic">&#x25A6;</span>Applications<span class="size" data-size="apps"></span></button>
-        <button data-view="browsers"><span class="ic">&#x25CE;</span>Navigateurs<span class="size" data-size="browsers"></span></button>
-        <button data-view="trash"><span class="ic">&#x21BA;</span>Corbeille<span class="size" data-size="trash"></span></button>
+      <div class="nav-foot">
+        <div class="disk" id="disk" hidden>
+          <div class="row"><span id="diskName">Disque local</span><span id="diskFree"></span></div>
+          <div class="bar"><i id="diskBar"></i></div>
+        </div>
+        <button class="about-btn" data-section="about"><span class="tile t-about" data-icon="logo"></span><span>Kaury Clean<small id="version"></small></span><span class="badge" id="updateDot" hidden></span></button>
       </div>
-      <div class="group">
-        <h4>Espace disque</h4>
-        <button data-view="large"><span class="ic">&#x25A3;</span>Gros fichiers</button>
-        <button data-view="dupes"><span class="ic">&#x29C9;</span>Doublons</button>
-        <button data-view="olddl"><span class="ic">&#x2193;</span>Vieux téléchargements</button>
-        <button data-view="organize"><span class="ic">&#x25A4;</span>Ranger mes fichiers</button>
-      </div>
-      <div class="group">
-        <h4>Vitesse</h4>
-        <button data-view="memory"><span class="ic">&#x2261;</span>Mémoire vive</button>
-        <button data-view="startup"><span class="ic">&#x26A1;</span>Démarrage</button>
-        <button data-view="uninstall"><span class="ic">&#x2715;</span>Désinstaller</button>
-      </div>
-      <div class="group">
-        <h4>Réparation</h4>
-        <button data-view="maintenance"><span class="ic">&#x2692;</span>Maintenance</button>
-      </div>
-      <div class="disk" id="disk" hidden>
-        <span id="diskName">Disque local</span>
-        <div class="bar"><i id="diskBar"></i></div>
-        <div class="row"><span id="diskFree"></span><span id="diskTotal"></span></div>
-      </div>
-      <div class="version" id="version"></div>
     </nav>
 
     <main>
-      <section class="view scan" id="v-scan">
-        <div class="orb"><canvas id="orb" width="440" height="440"></canvas><div class="val" id="orbVal">C:<small>prêt</small></div></div>
-        <h1 id="scanTitle">Ton PC mérite un bon coup de propre.</h1>
-        <p id="scanText">Kaury Clean cherche les fichiers temporaires, les caches des navigateurs et la corbeille. Tu choisis ensuite ce qui part.</p>
-        <div class="stats" id="stats" hidden></div>
-        <div class="health" id="health" hidden></div>
-        <div class="results" id="results" hidden></div>
-        <div class="actions">
-          <button class="cta" id="scanBtn">Analyser</button>
-          <button class="cta ghost" id="resetBtn" hidden>Nouvelle analyse</button>
+      <div class="tabs" id="tabs" hidden role="tablist"></div>
+
+      <section class="view home" id="v-home">
+        <div class="update-banner" id="updateBanner" hidden></div>
+
+        <div class="care-intro" id="careIntro">
+          <div class="hero-art" aria-hidden="true">
+            <div class="float"><div class="tile3d"><span data-icon="logo-big"></span></div></div>
+            <div class="floor"></div>
+          </div>
+          <div class="hero-text">
+            <h1>Entretien intelligent</h1>
+            <p class="lead">L'entretien rapide qui s'occupe de l'essentiel.</p>
+            <ul class="features">
+              <li><span class="tile sm t-clean" data-icon="broom"></span>Nettoyage des fichiers inutiles</li>
+              <li><span class="tile sm t-perf" data-icon="bolt"></span>Performances et démarrage</li>
+              <li><span class="tile sm t-files" data-icon="folder"></span>Applis et fichiers oubliés</li>
+            </ul>
+            <p class="stats" id="stats" hidden></p>
+          </div>
+        </div>
+
+        <div class="care-scan" id="careScan" hidden>
+          <div class="orb"><canvas id="orb" width="440" height="440"></canvas><div class="val" id="orbVal"></div></div>
+          <h1 id="scanTitle">Analyse en cours</h1>
+          <p class="progress-line" id="careProgress"></p>
+        </div>
+
+        <div class="care-results" id="careResults" hidden>
+          <h1 id="careTitle"></h1>
+          <p class="lead" id="careLead"></p>
+          <div class="bento" id="bento"></div>
+        </div>
+
+        <div class="care-actions">
+          <button class="link back" id="careReset" hidden>Recommencer</button>
+          <button class="round" id="careBtn">Analyser</button>
         </div>
       </section>
 
@@ -150,6 +159,8 @@
         </div>
         <div id="maintenanceBody"></div>
       </section>
+
+      <section class="view about" id="v-about" hidden></section>
 
       <div class="toast" id="toast" role="status"></div>
     </main>
