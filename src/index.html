@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kaury Clean</title>
+  <link rel="stylesheet" href="fonts/fonts.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="main.js" defer></script>
+</head>
+<body>
+  <div class="app">
+    <nav aria-label="Modules">
+      <div class="brand"><img src="logo.svg" alt="" width="26" height="26">kaury<em>.</em>clean</div>
+      <div class="group">
+        <button data-view="scan" aria-current="true"><span class="ic">&#x2726;</span>Analyse intelligente</button>
+      </div>
+      <div class="group">
+        <h4>Nettoyage</h4>
+        <button data-view="system"><span class="ic">&#x2699;</span>Fichiers système<span class="size" data-size="system"></span></button>
+        <button data-view="browsers"><span class="ic">&#x25CE;</span>Navigateurs<span class="size" data-size="browsers"></span></button>
+        <button data-view="trash"><span class="ic">&#x21BA;</span>Corbeille<span class="size" data-size="trash"></span></button>
+      </div>
+      <div class="group">
+        <h4>Espace disque</h4>
+        <button data-view="large"><span class="ic">&#x25A3;</span>Gros fichiers</button>
+        <button data-view="dupes"><span class="ic">&#x29C9;</span>Doublons</button>
+      </div>
+      <div class="group">
+        <h4>Vitesse</h4>
+        <button data-view="startup"><span class="ic">&#x26A1;</span>Démarrage</button>
+      </div>
+      <div class="disk" id="disk" hidden>
+        <span id="diskName">Disque local</span>
+        <div class="bar"><i id="diskBar"></i></div>
+        <div class="row"><span id="diskFree"></span><span id="diskTotal"></span></div>
+      </div>
+    </nav>
+
+    <main>
+      <section class="view scan" id="v-scan">
+        <div class="orb"><canvas id="orb" width="440" height="440"></canvas><div class="val" id="orbVal">C:<small>prêt</small></div></div>
+        <h1 id="scanTitle">Ton PC mérite un bon coup de propre.</h1>
+        <p id="scanText">Kaury Clean cherche les fichiers temporaires, les caches des navigateurs et la corbeille. Tu choisis ensuite ce qui part.</p>
+        <div class="results" id="results" hidden></div>
+        <div class="actions">
+          <button class="cta" id="scanBtn">Analyser</button>
+          <button class="cta ghost" id="resetBtn" hidden>Nouvelle analyse</button>
+        </div>
+      </section>
+
+      <section class="view" id="v-system" hidden data-group="system"
+        data-title="Fichiers système" data-desc="Fichiers temporaires, rapports d'erreur et caches que Windows et tes logiciels recréent tout seuls. Les fichiers temporaires de moins de 24 h sont gardés."></section>
+      <section class="view" id="v-browsers" hidden data-group="browsers"
+        data-title="Navigateurs" data-desc="Seulement le cache. Tes mots de passe, favoris, historique et sessions ne sont pas touchés."></section>
+      <section class="view" id="v-trash" hidden data-group="trash"
+        data-title="Corbeille" data-desc="Les fichiers déjà supprimés qui prennent encore de la place. Une fois la corbeille vidée, ils ne reviennent pas."></section>
+
+      <section class="view" id="v-large" hidden>
+        <div class="head">
+          <div><h2>Gros fichiers</h2><p>Les fichiers les plus lourds de ton Bureau, Téléchargements, Documents, Vidéos, Images et Musique. Rien n'est coché d'avance : c'est toi qui décides, et tout part à la corbeille.</p></div>
+          <div class="tools">
+            <label class="select">À partir de
+              <select id="largeMin"><option value="100">100 Mo</option><option value="500" selected>500 Mo</option><option value="1024">1 Go</option></select>
+            </label>
+            <button class="cta small" id="largeBtn">Rechercher</button>
+          </div>
+        </div>
+        <div id="largeList"></div>
+      </section>
+
+      <section class="view" id="v-dupes" hidden>
+        <div class="head">
+          <div><h2>Doublons</h2><p>Les fichiers identiques trouvés à plusieurs endroits de tes dossiers perso. La copie la plus récente est gardée, les autres sont cochées pour la corbeille.</p></div>
+          <div class="tools"><button class="cta small" id="dupesBtn">Rechercher</button></div>
+        </div>
+        <div id="dupesList"></div>
+      </section>
+
+      <section class="view" id="v-startup" hidden>
+        <div class="head">
+          <div><h2>Démarrage</h2><p>Les applis qui se lancent avec Windows. Désactive celles dont tu n'as pas besoin dès l'allumage : ton PC démarre plus vite, et tu peux les réactiver quand tu veux.</p></div>
+        </div>
+        <div id="startupList"></div>
+      </section>
+
+      <div class="toast" id="toast" role="status"></div>
+    </main>
+  </div>
+</body>
+</html>

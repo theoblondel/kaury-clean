@@ -1,0 +1,385 @@
+// Kaury Clean : interface. Tout le travail sur le disque se fait côté Rust (src-tauri).
+
+const invoke = window.__TAURI__ ? window.__TAURI__.core.invoke : demoInvoke;
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+function fmt(bytes) {
+  const units = ["o", "Ko", "Mo", "Go", "To"];
+  let v = bytes, i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  const digits = i >= 3 ? 1 : 0;
+  return v.toFixed(digits).replace(".", ",") + " " + units[i];
+}
+
+function ago(unixSecs) {
+  if (!unixSecs) return "";
+  const days = (Date.now() / 1000 - unixSecs) / 86400;
+  if (days < 1) return "aujourd'hui";
+  if (days < 30) return `il y a ${Math.round(days)} j`;
+  if (days < 365) return `il y a ${Math.round(days / 30)} mois`;
+  const years = Math.round(days / 365);
+  return `il y a ${years} an${years > 1 ? "s" : ""}`;
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("on"), 3200);
+}
+
+const sumChecked = (root) => $$("input[type=checkbox]:checked", root).reduce((a, i) => a + Number(i.dataset.bytes || 0), 0);
+
+// ---------- Navigation ----------
+$$("nav button").forEach((b) => b.addEventListener("click", () => show(b.dataset.view)));
+function show(view) {
+  $$("nav button").forEach((b) => b.setAttribute("aria-current", String(b.dataset.view === view)));
+  $$(".view").forEach((s) => (s.hidden = s.id !== "v-" + view));
+  if (view === "startup" && !startupLoaded) loadStartup();
+}
+
+// ---------- Disque ----------
+async function refreshDisk() {
+  try {
+    const d = await invoke("disk_info");
+    if (!d) return;
+    $("#disk").hidden = false;
+    $("#diskName").textContent = `Disque local (${d.name})`;
+    $("#diskFree").textContent = `${fmt(d.free)} libres`;
+    $("#diskTotal").textContent = fmt(d.total);
+    $("#diskBar").style.width = (((d.total - d.free) / d.total) * 100).toFixed(1) + "%";
+  } catch (e) { console.error(e); }
+}
+
+// ---------- Anneau animé ----------
+const cv = $("#orb"), ctx = cv.getContext("2d");
+let prog = 0, spin = 0, ringMode = "idle";
+function drawOrb() {
+  const W = cv.width, c = W / 2;
+  ctx.clearRect(0, 0, W, W);
+  const g = ctx.createRadialGradient(c, c, 20, c, c, c);
+  g.addColorStop(0, "rgba(245,110,46,.35)"); g.addColorStop(0.6, "rgba(245,110,46,.08)"); g.addColorStop(1, "rgba(245,110,46,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c, c, c, 0, 7); ctx.fill();
+  ctx.lineWidth = 14; ctx.lineCap = "round";
+  ctx.strokeStyle = "#2A2523"; ctx.beginPath(); ctx.arc(c, c, 165, 0, Math.PI * 2); ctx.stroke();
+  const gr = ctx.createLinearGradient(0, 0, W, W); gr.addColorStop(0, "#FF9A5C"); gr.addColorStop(1, "#F56E2E");
+  ctx.strokeStyle = gr; ctx.beginPath();
+  if (ringMode === "spin") ctx.arc(c, c, 165, spin, spin + 1.1);
+  else if (ringMode === "idle") ctx.arc(c, c, 165, spin, spin + 0.6);
+  else ctx.arc(c, c, 165, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * prog);
+  ctx.stroke();
+  for (let i = 0; i < 48; i++) {
+    const a = (i / 48) * Math.PI * 2 + spin * 0.3;
+    ctx.fillStyle = ringMode === "progress" && i / 48 < prog ? "rgba(241,232,203,.6)" : "rgba(241,232,203,.12)";
+    ctx.beginPath(); ctx.arc(c + Math.cos(a) * 192, c + Math.sin(a) * 192, 2.5, 0, 7); ctx.fill();
+  }
+  if (!reduceMotion) spin += ringMode === "spin" ? 0.08 : 0.02;
+  requestAnimationFrame(drawOrb);
+}
+drawOrb();
+const orbVal = (big, small) => ($("#orbVal").innerHTML = `${esc(big)}<small>${esc(small)}</small>`);
+
+// ---------- Fichiers inutiles (analyse intelligente + 3 modules) ----------
+let junk = null; // dernier résultat de scan_junk
+const GROUPS = { system: "Fichiers système", browsers: "Navigateurs", trash: "Corbeille" };
+let scanState = "idle";
+
+$("#scanBtn").addEventListener("click", () => {
+  if (scanState === "idle" || scanState === "done") runScan();
+  else if (scanState === "found") runClean($$("#results input:checked").map((i) => i.value), "scan");
+});
+$("#resetBtn").addEventListener("click", runScan);
+
+async function runScan() {
+  scanState = "scanning";
+  ringMode = "spin";
+  $("#scanBtn").disabled = true; $("#scanBtn").textContent = "Analyse…";
+  $("#resetBtn").hidden = true; $("#results").hidden = true; $("#scanText").hidden = false;
+  $("#scanTitle").textContent = "Analyse en cours";
+  $("#scanText").textContent = "On passe en revue les caches, les fichiers temporaires et la corbeille.";
+  orbVal("…", "analyse");
+  try {
+    junk = await invoke("scan_junk");
+  } catch (e) {
+    scanState = "idle"; ringMode = "idle";
+    $("#scanBtn").disabled = false; $("#scanBtn").textContent = "Analyser";
+    $("#scanTitle").textContent = "L'analyse n'a pas pu aboutir.";
+    $("#scanText").textContent = String(e);
+    return;
+  }
+  renderJunkEverywhere();
+  showScanResults();
+}
+
+function groupTotal(group) {
+  return (junk || []).filter((i) => i.group === group).reduce((a, i) => a + i.bytes, 0);
+}
+
+function showScanResults() {
+  scanState = "found";
+  ringMode = "progress"; prog = 1;
+  $("#scanTitle").textContent = "Voilà ce qu'on peut libérer.";
+  $("#scanText").hidden = true;
+  const r = $("#results");
+  r.hidden = false;
+  r.innerHTML = Object.entries(GROUPS).map(([g, title]) => {
+    const items = junk.filter((i) => i.group === g && i.bytes > 0);
+    if (!items.length) return "";
+    const warn = items.find((i) => i.running);
+    return `<label class="res"><input type="checkbox" checked value="${esc(g)}" data-bytes="${groupTotal(g)}">
+      <span class="txt"><div class="t">${esc(title)}${warn ? `<span class="chip warn">${esc(warn.running)} ouvert</span>` : ""}</div>
+      <div class="d">${items.length} élément${items.length > 1 ? "s" : ""} · ${items.reduce((a, i) => a + i.files, 0).toLocaleString("fr-CH")} fichiers</div></span>
+      <span class="s">${fmt(groupTotal(g))}</span></label>`;
+  }).join("");
+  const update = () => {
+    const bytes = sumChecked(r);
+    orbVal(fmt(bytes), "à libérer");
+    $("#scanBtn").disabled = bytes === 0;
+  };
+  if (!r.innerHTML.trim()) {
+    $("#scanTitle").textContent = "Ton PC est déjà tout propre.";
+    orbVal("0 o", "à libérer");
+    scanState = "done";
+    $("#scanBtn").disabled = false; $("#scanBtn").textContent = "Nouvelle analyse";
+    return;
+  }
+  $$("input", r).forEach((i) => i.addEventListener("change", update));
+  update();
+  $("#scanBtn").textContent = "Nettoyer";
+  $("#resetBtn").hidden = false;
+}
+
+async function runClean(selection, from) {
+  // selection : des groupes (depuis l'analyse) ou des identifiants (depuis un module)
+  const ids = from === "scan"
+    ? junk.filter((i) => selection.includes(i.group)).map((i) => i.id)
+    : selection;
+  if (!ids.length) return;
+  const expected = junk.filter((i) => ids.includes(i.id)).reduce((a, i) => a + i.bytes, 0);
+
+  scanState = "cleaning";
+  show("scan");
+  $("#results").hidden = true; $("#resetBtn").hidden = true;
+  $("#scanBtn").disabled = true; $("#scanBtn").textContent = "Nettoyage…";
+  $("#scanTitle").textContent = "Nettoyage en cours";
+  ringMode = "spin";
+  orbVal(fmt(expected), "à libérer");
+
+  let report;
+  try {
+    report = await invoke("clean_junk", { ids });
+  } catch (e) {
+    toast("Le nettoyage a échoué : " + e);
+    scanState = "done"; ringMode = "idle";
+    $("#scanBtn").disabled = false; $("#scanBtn").textContent = "Nouvelle analyse";
+    return;
+  }
+  ringMode = "progress"; prog = 1;
+  orbVal(fmt(report.freed), "libérés");
+  $("#scanTitle").textContent = "C'est tout propre.";
+  $("#scanText").hidden = false;
+  $("#scanText").textContent = report.skipped
+    ? `${report.removed.toLocaleString("fr-CH")} fichiers supprimés. ${report.skipped.toLocaleString("fr-CH")} fichiers gardés, parce qu'une appli les utilise ou qu'ils ont moins de 24 h. Ferme tes navigateurs et relance pour aller plus loin.`
+    : `${report.removed.toLocaleString("fr-CH")} fichiers supprimés.`;
+  scanState = "done";
+  $("#scanBtn").disabled = false; $("#scanBtn").textContent = "Nouvelle analyse";
+  junk = null;
+  renderJunkEverywhere();
+  refreshDisk();
+}
+
+function renderJunkEverywhere() {
+  for (const g of Object.keys(GROUPS)) {
+    $(`[data-size="${g}"]`).textContent = junk ? fmt(groupTotal(g)) : "";
+    renderGroupView(g);
+  }
+}
+
+function renderGroupView(g) {
+  const el = $("#v-" + g);
+  const head = `<div class="head"><div><h2>${esc(el.dataset.title)}</h2><p>${esc(el.dataset.desc)}</p></div></div>`;
+  if (!junk) {
+    el.innerHTML = head + `<div class="empty">Lance une analyse pour voir ce qui peut partir.<button class="cta small" data-scan>Analyser</button></div>`;
+    $("[data-scan]", el).addEventListener("click", () => { show("scan"); runScan(); });
+    return;
+  }
+  const items = junk.filter((i) => i.group === g);
+  if (!items.length) {
+    el.innerHTML = head + `<div class="empty">Rien à nettoyer ici.</div>`;
+    return;
+  }
+  el.innerHTML = head + `<div class="list">${items.map((it) => `
+    <label class="item"><input type="checkbox" value="${esc(it.id)}" data-bytes="${it.bytes}" ${it.bytes > 0 ? "checked" : "disabled"}>
+      <span class="txt"><div class="n">${esc(it.name)}${it.running ? `<span class="chip warn">${esc(it.running)} ouvert : ferme-le pour tout nettoyer</span>` : ""}</div>
+      <div class="p">${esc(it.detail)} · ${it.files.toLocaleString("fr-CH")} fichiers</div></span>
+      <span class="s">${fmt(it.bytes)}</span></label>`).join("")}</div>
+    <div class="foot"><span>Sélection : <b class="sel"></b></span><button class="cta small" data-clean>${g === "trash" ? "Vider la corbeille" : "Nettoyer"}</button></div>`;
+  const update = () => {
+    const bytes = sumChecked(el);
+    $(".sel", el).textContent = fmt(bytes);
+    $("[data-clean]", el).disabled = bytes === 0;
+  };
+  $$("input", el).forEach((i) => i.addEventListener("change", update));
+  $("[data-clean]", el).addEventListener("click", () => runClean($$("input:checked", el).map((i) => i.value), g));
+  update();
+}
+
+// ---------- Gros fichiers ----------
+$("#largeBtn").addEventListener("click", loadLarge);
+async function loadLarge() {
+  const box = $("#largeList");
+  box.innerHTML = `<div class="empty"><div class="spinner"></div>Recherche dans tes dossiers…</div>`;
+  $("#largeBtn").disabled = true;
+  try {
+    const files = await invoke("find_large_files", { minMb: Number($("#largeMin").value) });
+    renderFileList(box, files.length ? [{ files }] : [], { preselect: false, onDone: loadLarge });
+  } catch (e) {
+    box.innerHTML = `<div class="empty">La recherche a échoué : ${esc(e)}</div>`;
+  }
+  $("#largeBtn").disabled = false;
+}
+
+// ---------- Doublons ----------
+$("#dupesBtn").addEventListener("click", loadDupes);
+async function loadDupes() {
+  const box = $("#dupesList");
+  box.innerHTML = `<div class="empty"><div class="spinner"></div>Comparaison des fichiers… Ça peut prendre une minute.</div>`;
+  $("#dupesBtn").disabled = true;
+  try {
+    const groups = await invoke("find_duplicates");
+    renderFileList(box, groups, { preselect: true, onDone: loadDupes });
+  } catch (e) {
+    box.innerHTML = `<div class="empty">La recherche a échoué : ${esc(e)}</div>`;
+  }
+  $("#dupesBtn").disabled = false;
+}
+
+// Liste de fichiers avec cases à cocher et bouton « corbeille ». Pour les doublons, chaque groupe
+// garde sa première copie (la plus récente) décochée.
+function renderFileList(box, groups, { preselect, onDone }) {
+  if (!groups.length) {
+    box.innerHTML = `<div class="empty">Rien trouvé. Bonne nouvelle.</div>`;
+    return;
+  }
+  const isDupes = preselect;
+  box.innerHTML = `<div class="list">${groups.map((grp) => `
+    ${isDupes ? `<div class="group-title"><b>${esc(grp.files[0].name)}</b><span>${grp.files.length} copies · ${fmt(grp.bytes)} chacune</span></div>` : ""}
+    ${grp.files.map((f, i) => `
+      <label class="item"><input type="checkbox" value="${esc(f.path)}" data-bytes="${f.bytes}" ${isDupes && i > 0 ? "checked" : ""}>
+        <span class="txt"><div class="n">${esc(isDupes ? f.folder : f.name)}${isDupes && i === 0 ? `<span class="chip ok">la plus récente</span>` : ""}<span class="chip ${!isDupes && f.bytes > 4 * 1024 ** 3 ? "high" : ""}">${esc(ago(f.modified))}</span></div>
+        <div class="p">${esc(isDupes ? f.name : f.folder)}</div></span>
+        <span class="s">${fmt(f.bytes)}</span></label>`).join("")}`).join("")}</div>
+    <div class="foot"><span>Sélection : <b class="sel"></b></span><button class="cta small" data-trash>Mettre à la corbeille</button></div>`;
+  const update = () => {
+    const bytes = sumChecked(box);
+    $(".sel", box).textContent = fmt(bytes);
+    $("[data-trash]", box).disabled = bytes === 0;
+  };
+  $$("input", box).forEach((i) => i.addEventListener("change", update));
+  update();
+  $("[data-trash]", box).addEventListener("click", async () => {
+    const paths = $$("input:checked", box).map((i) => i.value);
+    $("[data-trash]", box).disabled = true;
+    try {
+      const r = await invoke("move_to_trash", { paths });
+      toast(`${r.moved} fichier${r.moved > 1 ? "s" : ""} à la corbeille · ${fmt(r.bytes)}` + (r.errors.length ? ` · ${r.errors.length} impossible(s)` : ""));
+      if (r.errors.length) console.warn(r.errors);
+    } catch (e) {
+      toast("Impossible de déplacer les fichiers : " + e);
+    }
+    junk = null; renderJunkEverywhere(); refreshDisk();
+    onDone();
+  });
+}
+
+// ---------- Démarrage ----------
+let startupLoaded = false;
+async function loadStartup() {
+  startupLoaded = true;
+  const box = $("#startupList");
+  box.innerHTML = `<div class="empty"><div class="spinner"></div></div>`;
+  let apps;
+  try {
+    apps = await invoke("list_startup_apps");
+  } catch (e) {
+    box.innerHTML = `<div class="empty">Impossible de lire la liste : ${esc(e)}</div>`;
+    return;
+  }
+  if (!apps.length) {
+    box.innerHTML = `<div class="empty">Aucune appli ne se lance au démarrage.</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="list">${apps.map((a) => `
+    <div class="item"><span class="ic">${esc(a.name.trim()[0] || "?")}</span>
+      <span class="txt"><div class="n">${esc(a.name)}${a.scope === "machine" ? `<span class="chip">tous les comptes · admin</span>` : ""}</div>
+      <div class="p" title="${esc(a.command)}">${esc(a.command)}</div></span>
+      <button class="toggle" role="switch" data-id="${esc(a.id)}" aria-label="${esc(a.name)} au démarrage" aria-checked="${a.enabled}"></button></div>`).join("")}</div>
+    <div class="foot"><span>Activées : <b class="sel"></b></span></div>`;
+  const update = () => ($(".sel", box).textContent = `${$$('[aria-checked="true"]', box).length} sur ${apps.length}`);
+  update();
+  $$(".toggle", box).forEach((t) => t.addEventListener("click", async () => {
+    const enabled = t.getAttribute("aria-checked") !== "true";
+    t.disabled = true;
+    try {
+      await invoke("set_startup_app", { id: t.dataset.id, enabled });
+      t.setAttribute("aria-checked", String(enabled));
+      update();
+    } catch (e) {
+      toast(String(e));
+    }
+    t.disabled = false;
+  }));
+}
+
+// ---------- Démarrage de l'interface ----------
+renderJunkEverywhere();
+refreshDisk();
+
+// ---------- Mode démo (ouverture dans un navigateur, sans Tauri) ----------
+function demoInvoke(cmd, args) {
+  const wait = (ms, v) => new Promise((r) => setTimeout(() => r(v), ms));
+  const GB = 1024 ** 3, MB = 1024 ** 2, now = Date.now() / 1000, day = 86400;
+  const f = (path, bytes, daysOld) => {
+    const i = path.lastIndexOf("\\");
+    return { path, name: path.slice(i + 1), folder: path.slice(0, i), bytes, modified: now - daysOld * day };
+  };
+  switch (cmd) {
+    case "disk_info": return wait(50, { name: "C:", total: 476 * GB, free: 61.2 * GB });
+    case "scan_junk": return wait(2200, [
+      { id: "user_temp", group: "system", name: "Fichiers temporaires", detail: "Dossier Temp de ton compte", bytes: 3.3 * GB, files: 18422, running: null },
+      { id: "windows_update", group: "system", name: "Téléchargements Windows Update", detail: "Mises à jour déjà installées", bytes: 2.1 * GB, files: 311, running: null },
+      { id: "crash_reports", group: "system", name: "Rapports d'erreur", detail: "Rapports de plantage et fichiers dump", bytes: 268 * MB, files: 47, running: null },
+      { id: "adobe_media_cache", group: "system", name: "Cache média Adobe", detail: "Premiere Pro et After Effects", bytes: 1.8 * GB, files: 902, running: null },
+      { id: "chrome", group: "browsers", name: "Google Chrome", detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas", bytes: 1.2 * GB, files: 6230, running: "Chrome" },
+      { id: "edge", group: "browsers", name: "Microsoft Edge", detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas", bytes: 486 * MB, files: 2104, running: null },
+      { id: "recycle_bin", group: "trash", name: "Corbeille", detail: "Tous les disques", bytes: 1.25 * GB, files: 251, running: null },
+    ]);
+    case "clean_junk": return wait(1500, { freed: 8.9 * GB, removed: 26012, skipped: 1240 });
+    case "find_large_files": return wait(900, [
+      f("D:\\Projets\\Kaury\\Exports\\Rendu_Kaury_Reel_4K_v3.mov", 18 * GB, 240),
+      f("C:\\Users\\Theo\\Downloads\\Windows11_23H2.iso", 6.2 * GB, 400),
+      f("C:\\Users\\Theo\\Downloads\\Shooting_Vevey_RAW.zip", 4.8 * GB, 150),
+      f("C:\\Users\\Theo\\Downloads\\Setup_DaVinci_Resolve.exe", 2.9 * GB, 380),
+      f("C:\\Users\\Theo\\Desktop\\Blondel_Display_sources.psd", 1.2 * GB, 700),
+    ].filter((x) => x.bytes >= args.minMb * MB));
+    case "find_duplicates": return wait(1400, [
+      { bytes: 38 * MB, files: [f("C:\\Users\\Theo\\Documents\\Projets\\Logo_Kaury_final_FINAL.ai", 38 * MB, 3), f("C:\\Users\\Theo\\Desktop\\Logo_Kaury_final_FINAL.ai", 38 * MB, 40), f("C:\\Users\\Theo\\Downloads\\Logo_Kaury_final_FINAL.ai", 38 * MB, 41)] },
+      { bytes: 22 * MB, files: [f("C:\\Users\\Theo\\Documents\\Projets\\Moodboard_Lac.png", 22 * MB, 12), f("C:\\Users\\Theo\\Desktop\\Moodboard_Lac.png", 22 * MB, 60)] },
+    ]);
+    case "move_to_trash": return wait(600, { moved: args.paths.length, bytes: args.paths.length * 30 * MB, errors: [] });
+    case "list_startup_apps": return wait(200, [
+      { id: "hkcu|Adobe Creative Cloud", name: "Adobe Creative Cloud", command: '"C:\\Program Files\\Adobe\\Adobe Creative Cloud\\ACC\\Creative Cloud.exe" --showwindow=false', scope: "user", enabled: true },
+      { id: "hkcu|Discord", name: "Discord", command: "C:\\Users\\Theo\\AppData\\Local\\Discord\\Update.exe --processStart Discord.exe", scope: "user", enabled: true },
+      { id: "hkcu|Spotify", name: "Spotify", command: "C:\\Users\\Theo\\AppData\\Roaming\\Spotify\\Spotify.exe /minimized", scope: "user", enabled: false },
+      { id: "hklm|SecurityHealth", name: "SecurityHealth", command: "%windir%\\system32\\SecurityHealthSystray.exe", scope: "machine", enabled: true },
+    ]);
+    case "set_startup_app": return wait(150, null);
+    default: return Promise.reject("Commande inconnue : " + cmd);
+  }
+}
