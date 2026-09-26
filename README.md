@@ -1,4 +1,4 @@
-<p align="center"><img src="design/logo.svg" width="96" alt=""></p>
+<p align="center"><img src="design/logo.svg" width="96" alt="Logo Kaury"></p>
 
 <h1 align="center">Kaury Clean</h1>
 

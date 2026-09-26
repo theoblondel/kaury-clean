@@ -338,7 +338,36 @@ async function checkUpdateQuietly() {
   }
   renderUpdateBanner();
   if ($("#updateCard")) renderUpdateCard();
+  proposeUpdate();
 }
+
+// Une fenêtre propose la nouvelle version à l'ouverture. « Plus tard » ne la remontre pas pour cette
+// version-là (le bandeau et la pastille restent).
+const SKIP_KEY = "kaury-clean-update-later";
+function proposeUpdate() {
+  if (!updateInfo || !updateInfo.available) return;
+  let skipped = null;
+  try { skipped = localStorage.getItem(SKIP_KEY); } catch { /* stockage indisponible */ }
+  if (skipped === updateInfo.latest) return;
+  const modal = $("#updateModal");
+  $("#updateModalTitle").textContent = `Kaury Clean ${updateInfo.latest} est disponible`;
+  $("#updateModalText").textContent = `Tu as la version ${updateInfo.current}. La mise à jour se télécharge${updateInfo.size ? ` (${fmt(updateInfo.size)})` : ""} et s'installe par-dessus : tes réglages sont gardés.`;
+  paintIcons(modal);
+  modal.hidden = false;
+  $("#updateNow").focus();
+}
+$("#updateLater").addEventListener("click", () => {
+  $("#updateModal").hidden = true;
+  try { localStorage.setItem(SKIP_KEY, updateInfo.latest); } catch { /* stockage indisponible */ }
+});
+$("#updateNow").addEventListener("click", () => {
+  $("#updateModal").hidden = true;
+  show("about");
+  installUpdate();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("#updateModal").hidden) $("#updateLater").click();
+});
 
 function renderUpdateBanner() {
   const available = !!(updateInfo && updateInfo.available);

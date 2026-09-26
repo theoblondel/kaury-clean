@@ -62,6 +62,7 @@ button { font: inherit; color: inherit; }
 .tile svg { width: 56%; height: 56%; fill: var(--tile-ink); stroke: var(--tile-ink); position: relative; z-index: 1; }
 .tile svg[fill="none"] { fill: none; }
 .tile svg .spark { fill: var(--cream); stroke: none; }
+.tile svg.k { width: 64%; height: 64%; fill: var(--cream); stroke: none; }
 .tile.sm { width: 30px; height: 30px; }
 .t-home, .t-about { background: linear-gradient(145deg, #FFB27D, #F56E2E 55%, #C94A17); }
 .t-clean { background: linear-gradient(145deg, #FFF8E3, #F1E8CB 50%, #CBB887); }
@@ -127,8 +128,9 @@ main { position: relative; overflow: auto; }
   transform: perspective(700px) rotateX(10deg) rotateY(-14deg);
 }
 .tile3d::before { content: ""; position: absolute; inset: -40% 30% 45% -30%; background: radial-gradient(closest-side, rgba(255, 255, 255, 0.55), transparent); transform: rotate(-20deg); }
-.tile3d span { width: 62%; height: 62%; position: relative; filter: drop-shadow(0 10px 14px rgba(90, 20, 0, 0.45)); }
+.tile3d span { width: 64%; height: 64%; position: relative; filter: drop-shadow(0 10px 14px rgba(90, 20, 0, 0.45)); }
 .tile3d svg { width: 100%; height: 100%; fill: var(--ink); }
+.tile3d svg.k { fill: var(--cream); }
 .tile3d svg .spark { fill: var(--cream); }
 .hero-art .floor { position: absolute; bottom: 4%; width: 60%; height: 22px; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.6), transparent); filter: blur(4px); animation: floor 6s ease-in-out infinite; }
 @keyframes float { 50% { transform: translateY(-12px); } }
@@ -148,6 +150,14 @@ main { position: relative; overflow: auto; }
 .care-scan h1 { font-size: 28px; }
 .progress-line { margin: 0; min-height: 1.4em; font: 12px var(--mono); color: var(--dim); max-width: 80%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.steps { list-style: none; margin: 4px 0 0; padding: 8px; width: min(100%, 460px); display: flex; flex-direction: column; gap: 2px; border-radius: 20px; border: 1px solid var(--line); background: rgba(20, 14, 13, 0.45); text-align: left; }
+.steps li { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 14px; transition: background 0.2s, opacity 0.2s; }
+.steps li.wait { opacity: 0.5; }
+.steps li.doing { background: var(--glass-2); }
+.step-name { flex: 1; font-weight: 600; }
+.step-state { font: 600 12.5px var(--mono); color: var(--muted); display: flex; align-items: center; }
+.steps li.done .step-state { color: var(--ok); }
+.steps li.fail .step-state { color: var(--orange-3); }
 .care-results { max-width: 1080px; width: 100%; margin: 0 auto; text-align: center; }
 .care-results h1 { font-size: 32px; }
 .bento { margin-top: 22px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; text-align: left; }
@@ -193,6 +203,19 @@ main { position: relative; overflow: auto; }
 .update-banner { display: flex; align-items: center; gap: 14px; max-width: 1040px; width: 100%; margin: 0 auto; padding: 12px 14px 12px 12px; border-radius: 18px; background: linear-gradient(90deg, rgba(245, 110, 46, 0.2), rgba(245, 110, 46, 0.06)); border: 1px solid rgba(245, 110, 46, 0.35); font-size: 13.5px; }
 .update-banner > span:nth-child(2) { flex: 1; color: var(--muted); }
 .update-banner b { color: var(--text); }
+
+.care-scan.running .orb { width: 170px; height: 170px; }
+.care-scan.running h1 { font-size: 24px; }
+
+/* Fenêtre « nouvelle version » à l'ouverture */
+.modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px; background: rgba(10, 7, 7, 0.6); backdrop-filter: blur(6px); animation: fade 0.2s ease-out; }
+.modal-card { width: min(100%, 480px); padding: 28px 28px 24px; border-radius: 28px; text-align: center; border: 1px solid var(--line-2); background: linear-gradient(160deg, #2A1D19, #171110); box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(245, 110, 46, 0.15); }
+.modal-card h2 { margin: 6px 0 0; font: 700 22px var(--display); letter-spacing: -0.02em; }
+.modal-card p { margin: 10px 0 22px; color: var(--muted); line-height: 1.55; }
+.modal-card .actions { flex-wrap: nowrap; }
+.hero-art.mini { width: 130px; }
+.hero-art.mini .tile3d { width: 96px; height: 96px; border-radius: 26px; }
+@keyframes fade { from { opacity: 0; } }
 
 /* ---------- À propos ---------- */
 .view.about { align-items: center; justify-content: center; gap: 26px; text-align: center; }

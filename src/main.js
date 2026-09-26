@@ -72,10 +72,12 @@ const ICONS = {
   bolt: '<svg viewBox="0 0 24 24"><path d="M13.5 2L4 13.5h6.5L9.5 22 20 9.5h-6.5z"/></svg>',
   grid: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2.5"/><rect x="13" y="3" width="8" height="8" rx="2.5"/><rect x="3" y="13" width="8" height="8" rx="2.5"/><rect x="13" y="13" width="8" height="8" rx="4"/></svg>',
   folder: '<svg viewBox="0 0 24 24"><path d="M2.5 6.5A2.5 2.5 0 0 1 5 4h4.2l2.3 2.3H19a2.5 2.5 0 0 1 2.5 2.5v8.7A2.5 2.5 0 0 1 19 20H5a2.5 2.5 0 0 1-2.5-2.5z"/></svg>',
+  globe: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path d="M9 2.5h6l1 2h4.5v2.5h-17V4.5H8z"/><path d="M5 9h14l-1.1 11.2a2 2 0 0 1-2 1.8H8.1a2 2 0 0 1-2-1.8z"/></svg>',
   wrench: '<svg viewBox="0 0 24 24"><path d="M21 7.2a5.5 5.5 0 0 1-7.4 5.2l-7 7a2.1 2.1 0 0 1-3-3l7-7A5.5 5.5 0 0 1 16.8 3l-3.1 3.1.9 2.4 2.4.9z"/></svg>',
   disk: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3"/><circle cx="17" cy="12" r="1.6" fill="currentColor" style="fill:var(--tile-ink,#1C1A1A)"/></svg>',
-  logo: '<svg viewBox="0 0 24 24"><path d="M11 4.5c.5 4.3 2.2 6 6.5 6.5-4.3.5-6 2.2-6.5 6.5-.5-4.3-2.2-6-6.5-6.5 4.3-.5 6-2.2 6.5-6.5z"/><path class="spark" d="M17.6 2.8c.2 1.6.8 2.2 2.4 2.4-1.6.2-2.2.8-2.4 2.4-.2-1.6-.8-2.2-2.4-2.4 1.6-.2 2.2-.8 2.4-2.4z"/></svg>',
-  "logo-big": '<svg viewBox="0 0 24 24"><path d="M11 4.5c.5 4.3 2.2 6 6.5 6.5-4.3.5-6 2.2-6.5 6.5-.5-4.3-2.2-6-6.5-6.5 4.3-.5 6-2.2 6.5-6.5z"/><path class="spark" d="M17.6 2.8c.2 1.6.8 2.2 2.4 2.4-1.6.2-2.2.8-2.4 2.4-.2-1.6-.8-2.2-2.4-2.4 1.6-.2 2.2-.8 2.4-2.4z"/></svg>',
+  logo: '<svg class="k" viewBox="422 533 1156 934"><g transform="translate(0,2000) scale(0.1,-0.1)"><path d="M4335 14651 c-48 -22 -79 -54 -100 -103 -26 -63 -22 -8996 4 -9053 22 -47 64 -89 104 -104 19 -8 386 -11 1163 -11 1094 0 1136 1 1172 19 70 36 96 83 116 213 18 113 33 306 41 528 4 91 8 181 10 200 3 19 7 346 10 725 7 763 7 758 69 796 35 22 93 25 131 7 17 -8 64 -68 130 -168 1007 -1522 2620 -2370 4511 -2370 1020 0 2481 280 3759 720 268 93 311 126 322 246 6 65 17 41 -237 529 -37 72 -138 267 -225 435 -502 974 -461 903 -537 935 -61 25 -91 19 -279 -60 -771 -321 -1382 -450 -2099 -444 -1164 10 -2114 415 -2423 1035 -248 495 -169 1254 188 1804 472 730 1450 1087 2540 929 390 -56 479 -138 462 -427 -17 -290 -157 -509 -400 -630 -291 -144 -616 -143 -1061 3 -43 14 -80 24 -82 22 -33 -33 -53 -717 -26 -902 105 -723 427 -1091 1032 -1180 1034 -152 1863 261 2374 1183 199 361 284 643 325 1087 15 156 6 667 -13 815 -176 1327 -964 2108 -2300 2280 -928 119 -1966 -41 -2896 -448 -1132 -494 -2218 -1387 -3083 -2535 l-142 -188 -5 1998 -5 1998 -30 45 c-19 28 -47 54 -75 68 l-44 22 -1181 0 c-1126 0 -1182 -1 -1220 -19z"/></g></svg>',
+  "logo-big": '<svg class="k" viewBox="422 533 1156 934"><g transform="translate(0,2000) scale(0.1,-0.1)"><path d="M4335 14651 c-48 -22 -79 -54 -100 -103 -26 -63 -22 -8996 4 -9053 22 -47 64 -89 104 -104 19 -8 386 -11 1163 -11 1094 0 1136 1 1172 19 70 36 96 83 116 213 18 113 33 306 41 528 4 91 8 181 10 200 3 19 7 346 10 725 7 763 7 758 69 796 35 22 93 25 131 7 17 -8 64 -68 130 -168 1007 -1522 2620 -2370 4511 -2370 1020 0 2481 280 3759 720 268 93 311 126 322 246 6 65 17 41 -237 529 -37 72 -138 267 -225 435 -502 974 -461 903 -537 935 -61 25 -91 19 -279 -60 -771 -321 -1382 -450 -2099 -444 -1164 10 -2114 415 -2423 1035 -248 495 -169 1254 188 1804 472 730 1450 1087 2540 929 390 -56 479 -138 462 -427 -17 -290 -157 -509 -400 -630 -291 -144 -616 -143 -1061 3 -43 14 -80 24 -82 22 -33 -33 -53 -717 -26 -902 105 -723 427 -1091 1032 -1180 1034 -152 1863 261 2374 1183 199 361 284 643 325 1087 15 156 6 667 -13 815 -176 1327 -964 2108 -2300 2280 -928 119 -1966 -41 -2896 -448 -1132 -494 -2218 -1387 -3083 -2535 l-142 -188 -5 1998 -5 1998 -30 45 c-19 28 -47 54 -75 68 l-44 22 -1181 0 c-1126 0 -1182 -1 -1220 -19z"/></g></svg>',
 };
 function paintIcons(root = document) {
   $$("[data-icon]", root).forEach((el) => { if (!el.firstChild) el.innerHTML = ICONS[el.dataset.icon] || ""; });
@@ -177,6 +179,7 @@ function careView(state) {
   care.state = state;
   $("#careIntro").hidden = state !== "idle";
   $("#careScan").hidden = !["scanning", "running"].includes(state);
+  $("#careScan").classList.toggle("running", state === "running");
   $("#careResults").hidden = !["results", "done"].includes(state);
   $("#careReset").hidden = state !== "results";
   const btn = $("#careBtn");
@@ -292,20 +295,64 @@ function renderBento() {
   $("[data-admin]", box)?.addEventListener("click", relaunchAsAdmin);
 }
 
+// Le ménage se fait section par section : chaque ligne passe de « en attente » à la roue, puis à la coche.
+const STEP_LOOK = {
+  system: { icon: "disk", tile: "t-repair" },
+  apps: { icon: "grid", tile: "t-apps" },
+  browsers: { icon: "globe", tile: "t-clean" },
+  trash: { icon: "trash", tile: "t-files" },
+  dns: { icon: "bolt", tile: "t-perf" },
+};
+
 async function runCareActions() {
   const ids = careIds();
+  const steps = Object.keys(GROUPS)
+    .map((g) => ({ key: g, label: GROUPS[g], ids: junk.filter((i) => i.group === g && ids.includes(i.id)).map((i) => i.id) }))
+    .filter((st) => st.ids.length);
+  steps.push({ key: "dns", label: "Cache DNS", ids: [] });
+
   careView("running");
   $("#scanTitle").textContent = "Nettoyage en cours";
-  orbVal(fmt(careBytes()), "à libérer");
+  const total = careBytes();
+  let freed = 0;
+  ringMode = "progress"; prog = 0;
+  orbVal(fmt(0), `sur ${fmt(total)}`);
+  const list = $("#careSteps");
+  list.hidden = false;
+  list.innerHTML = steps.map((st) => `<li data-step="${st.key}" class="wait">
+      <span class="tile sm ${STEP_LOOK[st.key].tile}" data-icon="${STEP_LOOK[st.key].icon}"></span>
+      <span class="step-name">${esc(st.label)}</span><span class="step-state">En attente</span></li>`).join("");
+  paintIcons(list);
   progressEl = $("#careProgress");
-  let report = { freed: 0, removed: 0, skipped: 0 };
-  try {
-    if (ids.length) report = await invoke("clean_junk", { ids });
-  } catch (e) {
-    toast("Le nettoyage a échoué : " + e);
+
+  const report = { freed: 0, removed: 0, skipped: 0 };
+  let dns = false;
+  for (const [n, st] of steps.entries()) {
+    const li = $(`[data-step="${st.key}"]`, list);
+    li.className = "doing";
+    $(".step-state", li).innerHTML = `<span class="spinner small"></span>`;
+    try {
+      if (st.key === "dns") {
+        dns = await invoke("run_maintenance", { id: "flush_dns" }).then((x) => x.ok);
+        $(".step-state", li).textContent = dns ? "✓ Vidé" : "Pas disponible";
+      } else {
+        const r = await invoke("clean_junk", { ids: st.ids });
+        report.freed += r.freed; report.removed += r.removed; report.skipped += r.skipped;
+        freed += r.freed;
+        $(".step-state", li).textContent = `✓ ${fmt(r.freed)}`;
+      }
+      li.className = "done";
+    } catch (e) {
+      li.className = "fail";
+      $(".step-state", li).textContent = "Échec";
+      console.error(e);
+    }
+    prog = (n + 1) / steps.length;
+    orbVal(fmt(freed), `sur ${fmt(total)}`);
   }
-  const dns = await invoke("run_maintenance", { id: "flush_dns" }).then((x) => x.ok).catch(() => false);
   progressEl = null;
+  await new Promise((r) => setTimeout(r, 700)); // le temps de voir la dernière coche
+  list.hidden = true;
   care = { ...care, report, dns };
   addFreed(report.freed);
   await refreshDisk();
@@ -565,8 +612,8 @@ function demoInvoke(cmd, args) {
     return { path, name: path.slice(i + 1), folder: path.slice(0, i), bytes, modified: now - daysOld * day };
   };
   switch (cmd) {
-    case "app_info": return wait(20, { version: "0.6.0", elevated: false });
-    case "check_update": return wait(600, { available: true, current: "0.6.0", latest: "0.7.0", notes: "", size: 6.4 * MB, page: "" });
+    case "app_info": return wait(20, { version: "0.7.0", elevated: false });
+    case "check_update": return wait(600, { available: true, current: "0.7.0", latest: "0.8.0", notes: "", size: 6.4 * MB, page: "" });
     case "install_update": return wait(1500, null).then(() => Promise.reject("Mode démo : la mise à jour se fait seulement dans l'appli"));
     case "open_link": return Promise.reject("Mode démo : les liens s'ouvrent seulement dans l'appli");
     case "relaunch_as_admin": return Promise.reject("Mode démo");

@@ -57,6 +57,7 @@
           <div class="orb"><canvas id="orb" width="440" height="440"></canvas><div class="val" id="orbVal"></div></div>
           <h1 id="scanTitle">Analyse en cours</h1>
           <p class="progress-line" id="careProgress"></p>
+          <ul class="steps" id="careSteps" hidden></ul>
         </div>
 
         <div class="care-results" id="careResults" hidden>
@@ -163,6 +164,17 @@
       <section class="view about" id="v-about" hidden></section>
 
       <div class="toast" id="toast" role="status"></div>
+      <div class="modal" id="updateModal" hidden role="dialog" aria-modal="true" aria-labelledby="updateModalTitle">
+        <div class="modal-card">
+          <div class="hero-art mini" aria-hidden="true"><div class="float"><div class="tile3d"><span data-icon="logo-big"></span></div></div></div>
+          <h2 id="updateModalTitle"></h2>
+          <p id="updateModalText"></p>
+          <div class="actions">
+            <button class="cta ghost" id="updateLater">Plus tard</button>
+            <button class="cta" id="updateNow">Mettre à jour maintenant</button>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 </body>
