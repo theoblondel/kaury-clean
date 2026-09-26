@@ -160,8 +160,10 @@ mod imp {
         hasher.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos());
         let dir = base.join(format!("kaury-clean-{:016x}", hasher.finish()));
         std::fs::create_dir(&dir)?; // échoue si quelque chose porte déjà ce nom
+        // Il faut un vrai droit de lecture : un handle ouvert pour les seuls attributs ne verrouille rien.
+        const FILE_LIST_DIRECTORY: u32 = 0x0001;
         let lock = OpenOptions::new()
-            .access_mode(FILE_READ_ATTRIBUTES)
+            .access_mode(FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES)
             .share_mode(0x1 | 0x2) // lecture et écriture, jamais suppression ni renommage
             .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
             .open(&dir)?;
