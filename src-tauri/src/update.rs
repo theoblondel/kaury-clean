@@ -172,9 +172,12 @@ pub fn download(current: &str, progress: &dyn Fn(u32)) -> Result<(File, PathBuf)
     }
 
     let name: String = info.file_name.chars().filter(|c| c.is_ascii_alphanumeric() || "._- ".contains(*c)).collect();
-    let path = std::env::temp_dir().join(name);
+    // Dossier neuf et verrouillé, fichier neuf : rien de préparé à l'avance par un autre programme
+    // (un lien vers un fichier de Windows, par exemple) ne peut être écrasé à sa place.
+    let (_dir_lock, dir) = crate::garde::private_dir(&std::env::temp_dir()).map_err(|e| e.to_string())?;
+    let path = dir.join(name);
     {
-        let mut file = File::create(&path).map_err(|e| e.to_string())?;
+        let mut file = File::options().write(true).create_new(true).open(&path).map_err(|e| e.to_string())?;
         let mut reader = response.into_reader().take(MAX_INSTALLER + 1);
         let mut buffer = [0u8; 64 * 1024];
         let mut done = 0u64;

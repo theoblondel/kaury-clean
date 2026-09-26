@@ -82,7 +82,7 @@ Un seul bouton. Kaury Clean passe en revue les fichiers inutiles, les applis au 
 - Mémoire vive : les processus de Windows ne sont jamais proposés à la fermeture.
 - Mises à jour : chaque installeur est signé avec une clé qui ne quitte jamais le PC de Kaury Studio. Sans signature valide, rien n'est lancé, même publié sur ce repo. L'installeur vérifié reste verrouillé jusqu'à son lancement.
 - Droits administrateur : l'appli démarre sans. Les dossiers protégés de Windows sont signalés « admin » et décochés, avec un lien pour relancer en administrateur.
-- En administrateur, l'appli ne peut pas servir de relais à un autre programme : les dossiers de ton compte ne sont touchés que s'ils sont vraiment dans ton dossier personnel (une variable TEMP ou un dossier Documents détourné vers Windows est ignoré), les outils de Windows sont lancés par leur chemin complet, les applis installées pour ton compte seul ne se désinstallent pas avec ces droits, et l'annulation d'un rangement refuse tout déplacement qu'elle n'a pas fait elle-même.
+- En administrateur, l'appli ne peut pas servir de relais à un autre programme : les dossiers de ton compte ne sont touchés que s'ils sont vraiment dans ton dossier personnel (une variable TEMP ou un dossier Documents détourné vers Windows est ignoré), les outils de Windows sont lancés par leur chemin complet, les applis installées pour ton compte seul ne se désinstallent pas avec ces droits, et l'annulation d'un rangement refuse tout déplacement qu'elle n'a pas fait elle-même. Tes fichiers perso (corbeille, rangement) ne se déplacent jamais avec ces droits, et les variables `WEBVIEW2_*`, qui permettraient de remplacer le moteur d'affichage, sont ignorées.
 
 </details>
 

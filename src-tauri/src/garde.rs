@@ -151,6 +151,25 @@ mod imp {
     pub fn elevated() -> bool {
         crate::elevation::is_elevated()
     }
+
+    /// Dossier neuf, au nom imprévisible, verrouillé tant que le fichier renvoyé reste ouvert :
+    /// impossible de le supprimer, de le renommer ou de le remplacer par une jonction.
+    pub fn private_dir(base: &Path) -> io::Result<(std::fs::File, PathBuf)> {
+        use std::hash::{BuildHasher, Hasher};
+        let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+        hasher.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos());
+        let dir = base.join(format!("kaury-clean-{:016x}", hasher.finish()));
+        std::fs::create_dir(&dir)?; // échoue si quelque chose porte déjà ce nom
+        let lock = OpenOptions::new()
+            .access_mode(FILE_READ_ATTRIBUTES)
+            .share_mode(0x1 | 0x2) // lecture et écriture, jamais suppression ni renommage
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+            .open(&dir)?;
+        if lock.metadata()?.file_type().is_symlink() {
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "dossier remplacé par un lien"));
+        }
+        Ok((lock, dir))
+    }
 }
 
 #[cfg(not(windows))]
@@ -185,9 +204,15 @@ mod imp {
     pub fn elevated() -> bool {
         false
     }
+
+    pub fn private_dir(base: &Path) -> io::Result<(fs::File, PathBuf)> {
+        let dir = base.join(format!("kaury-clean-{}", std::process::id()));
+        fs::create_dir(&dir)?;
+        Ok((fs::File::open(&dir)?, dir))
+    }
 }
 
-pub use imp::{profile_dir, remove_inside, windows_dir};
+pub use imp::{private_dir, profile_dir, remove_inside, windows_dir};
 
 /// Un programme de Windows par son chemin complet : un faux « taskkill.exe » posé ailleurs
 /// sur le PC ne peut jamais être lancé à sa place.
@@ -253,6 +278,17 @@ mod tests {
         assert!(windows_program("powershell.exe").is_file());
         assert!(system_drive().ends_with(':'));
         assert!(profile_dir().is_some_and(|p| p.is_dir()));
+    }
+
+    #[test]
+    fn private_dir_is_new_and_locked() {
+        let base = tempfile::tempdir().unwrap();
+        let (lock, dir) = private_dir(base.path()).unwrap();
+        assert!(dir.is_dir());
+        #[cfg(windows)]
+        assert!(fs::remove_dir(&dir).is_err(), "le dossier doit être verrouillé");
+        drop(lock);
+        fs::remove_dir(&dir).unwrap();
     }
 
     #[test]
