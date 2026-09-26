@@ -6,6 +6,7 @@ mod junk;
 mod maintenance;
 mod memory;
 mod organize;
+mod space;
 mod startup;
 mod uninstall;
 mod update;
@@ -110,6 +111,18 @@ async fn find_duplicates(app: AppHandle) -> Result<Vec<files::DuplicateGroup>, S
 async fn find_old_downloads(app: AppHandle, min_days: u64) -> Result<Vec<files::FileEntry>, String> {
     let downloads = dirs::download_dir().ok_or("Dossier Téléchargements introuvable")?;
     search(move || files::old_downloads(&downloads, min_days, &reporter(app))).await
+}
+
+/// Ce qui prend de la place sur le disque. Lecture seule.
+#[tauri::command]
+async fn disk_usage(app: AppHandle) -> Result<space::SpaceReport, String> {
+    let (total, used) = disk_info().map(|d| (d.total, d.total.saturating_sub(d.free))).unwrap_or((0, 0));
+    search(move || space::scan(total, used, &reporter(app))).await
+}
+
+#[tauri::command]
+fn open_folder(path: String) -> Result<(), String> {
+    space::open(&path)
 }
 
 #[tauri::command]
@@ -320,6 +333,8 @@ pub fn run() {
             run_maintenance,
             move_to_trash,
             reveal_file,
+            disk_usage,
+            open_folder,
             list_startup_apps,
             set_startup_app,
         ])

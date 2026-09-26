@@ -396,3 +396,47 @@ async function installUpdate() {
     renderUpdateCard("La mise à jour n'a pas pu se faire : " + e);
   }
 }
+
+// ---------- Place du disque ----------
+// Lecture seule : une carte de ce qui prend de la place. Aucun bouton n'efface quoi que ce soit.
+const SPACE_KINDS = { files: "Tes fichiers", apps: "Données d'applis", programs: "Programmes", system: "Windows et le reste" };
+$("#spaceBtn").addEventListener("click", loadSpace);
+
+async function loadSpace() {
+  const box = $("#spaceBody");
+  startSearch(box, "Mesure de ton disque… Ça peut prendre une ou deux minutes.");
+  $("#spaceBtn").disabled = true;
+  try {
+    const r = await invoke("disk_usage");
+    progressEl = null;
+    renderSpace(box, r);
+  } catch (e) {
+    searchFailed(box, e);
+  }
+  $("#spaceBtn").disabled = false;
+}
+
+function renderSpace(box, r) {
+  const used = r.used || r.groups.reduce((a, g) => a + g.bytes, 0);
+  const pct = (b) => (used ? (b / used) * 100 : 0);
+  const max = r.top.length ? r.top[0].bytes : 1;
+  const initial = (name) => (name.replace(/^\./, "")[0] || "?").toUpperCase();
+  box.innerHTML = `
+    <div class="space-map">
+      <div class="space-top"><b>${fmt(used)}</b><span>utilisés${r.total ? ` sur ${fmt(r.total)}` : ""}</span></div>
+      <div class="space-bar">${r.groups.filter((g) => g.bytes > 0).map((g) =>
+        `<i class="k-${esc(g.kind)}" style="width:${pct(g.bytes).toFixed(2)}%" title="${esc(g.label)} · ${fmt(g.bytes)}"></i>`).join("")}</div>
+      <div class="space-legend">${r.groups.map((g) => `<span><i class="k-${esc(g.kind)}"></i>${esc(g.label)}<b>${fmt(g.bytes)}</b></span>`).join("")}</div>
+    </div>
+    ${r.top.length ? `<div class="list">${r.top.map((e) => `
+      <div class="item"><span class="ic k-${esc(e.kind)}">${esc(initial(e.name))}</span>
+        <span class="txt"><div class="n">${esc(e.name)}<span class="chip">${esc(SPACE_KINDS[e.kind] || "")}</span></div>
+          <div class="p">${esc(e.note)}</div>
+          <div class="bar thin"><i style="width:${((e.bytes / max) * 100).toFixed(1)}%"></i></div></span>
+        <span class="end"><button class="reveal" data-open="${esc(e.path)}" title="Ouvrir dans l'Explorateur">Ouvrir</button><span class="s">${fmt(e.bytes)}</span></span></div>`).join("")}</div>
+    <div class="foot"><span>Les ${r.top.length} plus gros dossiers de ton compte, des données d'applis et des programmes. Rien n'est effacé d'ici.</span></div>`
+    : `<div class="empty">Aucun dossier lisible.</div>`}`;
+  $$("[data-open]", box).forEach((b) => b.addEventListener("click", () => {
+    invoke("open_folder", { path: b.dataset.open }).catch((err) => toast(String(err)));
+  }));
+}
