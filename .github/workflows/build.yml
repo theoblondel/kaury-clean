@@ -38,14 +38,19 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: kaury-clean-windows
-          path: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/msi/*.msi
+          path: src-tauri/target/release/bundle/nsis/*.exe
 
       - name: Publier la release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/msi/*.msi
+          name: Kaury Clean ${{ github.ref_name }}
+          files: src-tauri/target/release/bundle/nsis/*.exe
+          body: |
+            ## Installer Kaury Clean
+
+            1. Télécharge **Kaury Clean_…_x64-setup.exe** ci-dessous.
+            2. Ouvre-le. Si Windows affiche « Windows a protégé votre ordinateur », clique sur **Informations complémentaires** puis **Exécuter quand même** (l'appli n'est pas encore signée).
+            3. Suis l'installeur : Kaury Clean s'installe dans Programmes, avec un raccourci dans le menu Démarrer et sur le Bureau.
+
+            Pour désinstaller : **Paramètres > Applications > Kaury Clean > Désinstaller**.

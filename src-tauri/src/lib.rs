@@ -142,8 +142,12 @@ fn organize_dir(folder: &str) -> Result<PathBuf, String> {
     .ok_or_else(|| "Dossier introuvable".into())
 }
 
+/// Rangé dans le dossier de données de l'appli : le désinstalleur le supprime avec le reste.
 fn undo_log() -> PathBuf {
-    dirs::data_local_dir().unwrap_or_else(std::env::temp_dir).join("Kaury Clean").join("dernier-rangement.json")
+    dirs::data_local_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("studio.kaury.clean")
+        .join("dernier-rangement.json")
 }
 
 #[tauri::command]
@@ -206,6 +210,8 @@ async fn run_maintenance(app: AppHandle, id: String) -> Result<maintenance::Task
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Taille et position de la fenêtre retrouvées à chaque ouverture.
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             app_info,
             relaunch_as_admin,

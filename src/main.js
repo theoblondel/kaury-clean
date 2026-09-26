@@ -494,7 +494,7 @@ function demoInvoke(cmd, args) {
     return { path, name: path.slice(i + 1), folder: path.slice(0, i), bytes, modified: now - daysOld * day };
   };
   switch (cmd) {
-    case "app_info": return wait(20, { version: "0.4.0", elevated: false });
+    case "app_info": return wait(20, { version: "0.5.0", elevated: false });
     case "relaunch_as_admin": return Promise.reject("Mode démo");
     case "reveal_file": return Promise.reject("Mode démo : l'Explorateur s'ouvre seulement dans l'appli");
     case "disk_info": return wait(50, { name: "C:", total: 476 * GB, free: 61.2 * GB });

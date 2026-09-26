@@ -73,8 +73,19 @@ Kaury Clean démarre sans droits particuliers. Les dossiers protégés de Window
 
 ## Télécharger
 
-Chaque push sur `main` compile l'appli sur GitHub Actions. L'installeur (`.exe`) se trouve dans l'onglet **Actions**, dans l'artefact `kaury-clean-windows`.
-Pour une version officielle, crée un tag `v0.1.0` : l'installeur est alors publié dans **Releases**.
+Va dans **[Releases](../../releases/latest)** et télécharge `Kaury Clean_…_x64-setup.exe`.
+
+L'installeur installe Kaury Clean dans Programmes pour tous les comptes du PC, avec un raccourci dans le menu Démarrer (dossier Kaury Studio) et sur le Bureau. L'appli apparaît dans **Paramètres > Applications**, d'où elle se désinstalle comme n'importe quel logiciel.
+
+Au premier lancement, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » : l'appli n'est pas encore signée avec un certificat. Clique sur **Informations complémentaires** puis **Exécuter quand même**.
+
+### Publier une nouvelle version
+
+1. Change le numéro de version dans `package.json`, `src-tauri/Cargo.toml` et `src-tauri/tauri.conf.json`.
+2. Crée et pousse un tag : `git tag v0.6.0 && git push origin v0.6.0`.
+3. GitHub Actions compile l'installeur et publie la release toute seule.
+
+Chaque push sur `main` compile aussi l'installeur (onglet **Actions**, artefact `kaury-clean-windows`), pratique pour tester avant de publier.
 
 ## Développer
 
