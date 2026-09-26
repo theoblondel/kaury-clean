@@ -330,6 +330,7 @@ async function runCareActions() {
   for (const [n, st] of steps.entries()) {
     const li = $(`[data-step="${st.key}"]`, list);
     li.className = "doing";
+    $("#careProgress").textContent = st.label;
     $(".step-state", li).innerHTML = `<span class="spinner small"></span>`;
     try {
       if (st.key === "dns") {
@@ -602,6 +603,17 @@ document.addEventListener("contextmenu", (e) => {
 
 // ---------- Mode démo (ouverture dans un navigateur, sans Tauri) ----------
 const demoState = { undo: false };
+const DEMO_JUNK = (() => { const GB = 1024 ** 3, MB = 1024 ** 2; return [
+      { id: "user_temp", group: "system", name: "Fichiers temporaires", detail: "Dossier Temp de ton compte", bytes: 3.3 * GB, files: 18422, running: null },
+      { id: "windows_update", group: "system", name: "Téléchargements Windows Update", detail: "Mises à jour déjà installées", bytes: 2.1 * GB, files: 311, running: null, needs_admin: true },
+      { id: "crash_reports", group: "system", name: "Rapports d'erreur", detail: "Rapports de plantage et fichiers dump", bytes: 268 * MB, files: 47, running: null },
+      { id: "adobe_media_cache", group: "apps", name: "Cache média Adobe", detail: "Premiere Pro et After Effects", bytes: 1.8 * GB, files: 902, running: null },
+      { id: "spotify", group: "apps", name: "Spotify", detail: "Musique mise en cache : elle se retélécharge quand tu l'écoutes", bytes: 3.4 * GB, files: 812, running: "Spotify" },
+      { id: "discord", group: "apps", name: "Discord", detail: "Images et vidéos déjà vues", bytes: 640 * MB, files: 4211, running: null },
+      { id: "chrome", group: "browsers", name: "Google Chrome", detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas", bytes: 1.2 * GB, files: 6230, running: "Chrome" },
+      { id: "edge", group: "browsers", name: "Microsoft Edge", detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas", bytes: 486 * MB, files: 2104, running: null },
+      { id: "recycle_bin", group: "trash", name: "Corbeille", detail: "Tous les disques", bytes: 1.25 * GB, files: 251, running: null },
+    ]; })();
 function demoInvoke(cmd, args) {
   if (cmd === "organize_apply") demoState.undo = true;
   if (cmd === "organize_undo") demoState.undo = false;
@@ -619,18 +631,13 @@ function demoInvoke(cmd, args) {
     case "relaunch_as_admin": return Promise.reject("Mode démo");
     case "reveal_file": return Promise.reject("Mode démo : l'Explorateur s'ouvre seulement dans l'appli");
     case "disk_info": return wait(50, { name: "C:", total: 476 * GB, free: 61.2 * GB });
-    case "scan_junk": return wait(2200, [
-      { id: "user_temp", group: "system", name: "Fichiers temporaires", detail: "Dossier Temp de ton compte", bytes: 3.3 * GB, files: 18422, running: null },
-      { id: "windows_update", group: "system", name: "Téléchargements Windows Update", detail: "Mises à jour déjà installées", bytes: 2.1 * GB, files: 311, running: null, needs_admin: true },
-      { id: "crash_reports", group: "system", name: "Rapports d'erreur", detail: "Rapports de plantage et fichiers dump", bytes: 268 * MB, files: 47, running: null },
-      { id: "adobe_media_cache", group: "apps", name: "Cache média Adobe", detail: "Premiere Pro et After Effects", bytes: 1.8 * GB, files: 902, running: null },
-      { id: "spotify", group: "apps", name: "Spotify", detail: "Musique mise en cache : elle se retélécharge quand tu l'écoutes", bytes: 3.4 * GB, files: 812, running: "Spotify" },
-      { id: "discord", group: "apps", name: "Discord", detail: "Images et vidéos déjà vues", bytes: 640 * MB, files: 4211, running: null },
-      { id: "chrome", group: "browsers", name: "Google Chrome", detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas", bytes: 1.2 * GB, files: 6230, running: "Chrome" },
-      { id: "edge", group: "browsers", name: "Microsoft Edge", detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas", bytes: 486 * MB, files: 2104, running: null },
-      { id: "recycle_bin", group: "trash", name: "Corbeille", detail: "Tous les disques", bytes: 1.25 * GB, files: 251, running: null },
-    ]);
-    case "clean_junk": return wait(1500, { freed: 8.9 * GB, removed: 26012, skipped: 1240 });
+    case "scan_junk": return wait(2200, DEMO_JUNK);
+    case "clean_junk": {
+      const items = DEMO_JUNK.filter((i) => args.ids.includes(i.id));
+      const bytes = items.reduce((a, i) => a + i.bytes, 0);
+      const files = items.reduce((a, i) => a + i.files, 0);
+      return wait(1100, { freed: Math.round(bytes * 0.94), removed: Math.round(files * 0.95), skipped: Math.round(files * 0.05) });
+    }
     case "find_large_files": return wait(900, [
       f("D:\\Projets\\Kaury\\Exports\\Rendu_Kaury_Reel_4K_v3.mov", 18 * GB, 240),
       f("C:\\Users\\Theo\\Downloads\\Windows11_23H2.iso", 6.2 * GB, 400),
