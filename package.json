@@ -5,7 +5,9 @@
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
-    "build": "tauri build"
+    "build": "tauri build",
+    "cle": "node scripts/signature.mjs cle",
+    "signer": "node scripts/signature.mjs signer"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"

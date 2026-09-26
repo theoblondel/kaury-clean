@@ -93,7 +93,7 @@ pub fn close(exe: &str, force: bool) -> Result<bool, String> {
     if protected(exe) || !still_running(exe) {
         return Err("Cette appli ne peut pas être fermée d'ici".into());
     }
-    let mut cmd = Command::new("taskkill");
+    let mut cmd = Command::new(crate::garde::windows_program("taskkill.exe"));
     if force {
         cmd.arg("/F");
     }

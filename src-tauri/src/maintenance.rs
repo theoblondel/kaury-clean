@@ -133,8 +133,7 @@ pub fn list() -> Vec<TaskInfo> {
 }
 
 fn expand(arg: &str) -> String {
-    let drive = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".into());
-    arg.replace("%SystemDrive%", &drive)
+    arg.replace("%SystemDrive%", &crate::garde::system_drive())
 }
 
 /// Texte d'une sortie d'outil. SFC écrit en UTF-16, les autres en 8 bits.
@@ -243,12 +242,13 @@ pub fn run(id: &str, progress: &dyn Fn(&str)) -> Result<TaskResult, String> {
                 }
             }
             if !explorer_running() {
-                Command::new("explorer.exe").spawn().map_err(|e| format!("explorer : {e}"))?;
+                Command::new(crate::garde::windows_program("explorer.exe")).spawn().map_err(|e| format!("explorer : {e}"))?;
             }
             continue;
         }
 
-        let mut cmd = Command::new(program);
+        // Chemin complet dans C:\Windows : jamais un programme du même nom posé ailleurs.
+        let mut cmd = Command::new(crate::garde::windows_program(program));
         cmd.args(args.iter().map(|a| expand(a)));
         #[cfg(windows)]
         {
@@ -311,5 +311,16 @@ mod tests {
         ids.dedup();
         assert_eq!(ids.len(), TASKS.len());
         assert!(TASKS.iter().all(|t| !t.steps.is_empty()));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn every_program_is_found_inside_windows() {
+        for task in TASKS {
+            for (program, _) in task.steps {
+                let path = crate::garde::windows_program(program);
+                assert!(path.is_file(), "{program} introuvable : {}", path.display());
+            }
+        }
     }
 }

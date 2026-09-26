@@ -10,6 +10,7 @@ use std::time::Duration;
 use serde::Serialize;
 
 use crate::fsutil::{clean_dir, dir_size};
+use crate::garde;
 
 const DAY: Duration = Duration::from_secs(24 * 3600);
 
@@ -82,8 +83,9 @@ fn firefox_caches(local: &Option<PathBuf>) -> Vec<PathBuf> {
 fn targets() -> Vec<Target> {
     let local = env_path("LOCALAPPDATA");
     let roaming = env_path("APPDATA");
-    let windir = env_path("SystemRoot");
-    let program_data = env_path("ProgramData");
+    // Dossiers de Windows donnés par Windows, jamais par une variable qu'un programme pourrait détourner.
+    let windir = Some(garde::windows_dir());
+    let program_data = Some(program_data());
 
     let mut crash = join(&local, "CrashDumps");
     crash.extend(join(&local, "Microsoft/Windows/WER"));
@@ -321,11 +323,33 @@ pub fn scan(progress: &dyn Fn(&str)) -> Vec<JunkItem> {
     items
 }
 
+/// Dossiers de Windows vidés par l'appli : les seuls hors de ton dossier personnel qu'elle accepte
+/// de toucher en administrateur. Comparaison exacte : un TEMP détourné vers C:\Windows\System32
+/// ne passe pas pour autant.
+const WINDOWS_TARGETS: &[&str] = &[
+    "Temp",
+    "SoftwareDistribution/Download",
+    "ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache",
+];
+const PROGRAM_DATA_TARGETS: &[&str] = &["Microsoft/Windows/WER/ReportArchive", "Microsoft/Windows/WER/ReportQueue"];
+
+fn program_data() -> PathBuf {
+    PathBuf::from(format!(r"{}\ProgramData", garde::system_drive()))
+}
+
+fn is_windows_target(path: &Path) -> bool {
+    let (windir, program_data) = (garde::windows_dir(), program_data());
+    WINDOWS_TARGETS.iter().any(|rel| windir.join(rel) == path)
+        || PROGRAM_DATA_TARGETS.iter().any(|rel| program_data.join(rel) == path)
+}
+
 pub fn clean(ids: &[String], progress: &dyn Fn(&str)) -> CleanReport {
     let mut report = CleanReport::default();
     for t in targets().into_iter().filter(|t| ids.iter().any(|id| id == t.id)) {
         progress(t.name);
-        for p in existing(&t.paths) {
+        // Les chemins de ton compte viennent de variables (TEMP, LOCALAPPDATA...) qu'un programme peut
+        // détourner vers C:\Windows : en administrateur, ils doivent être dans ton dossier personnel.
+        for p in existing(&t.paths).filter(|p| is_windows_target(p) || garde::user_dir_allowed(p)) {
             let (freed, removed, skipped) = clean_dir(p, t.min_age);
             report.freed += freed;
             report.removed += removed;
@@ -372,5 +396,21 @@ mod recycle_bin {
     }
     pub fn empty() -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_exact_windows_folders_pass_as_windows_targets() {
+        let windir = garde::windows_dir();
+        assert!(is_windows_target(&windir.join("Temp")));
+        assert!(is_windows_target(&windir.join("SoftwareDistribution/Download")));
+        assert!(!is_windows_target(&windir));
+        assert!(!is_windows_target(&windir.join("System32")));
+        assert!(!is_windows_target(&windir.join("Temp/../System32")));
+        assert!(!is_windows_target(&program_data()));
     }
 }

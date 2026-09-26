@@ -117,14 +117,25 @@ mod imp {
         use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
         let (src, sub) = id.split_once('|').ok_or("Appli inconnue")?;
+        // Les applis « de ton compte » sont inscrites à un endroit que n'importe quel programme peut
+        // modifier. Lancer leur désinstalleur en administrateur offrirait ces droits à un imposteur,
+        // sans même la fenêtre de confirmation de Windows.
+        if src == "hkcu" && crate::elevation::is_elevated() {
+            return Err(concat!(
+                "Par sécurité, cette appli (installée pour ton compte seulement) ne se désinstalle pas ",
+                "depuis Kaury Clean en mode administrateur. Rouvre Kaury Clean normalement, ",
+                "ou passe par Paramètres › Applications."
+            )
+            .into());
+        }
         let key = open(src, sub).filter(visible).ok_or("Cette appli n'est plus installée")?;
         // La commande vient du registre, jamais de l'interface.
         let (exe, args) = split_command(&text(&key, "UninstallString"));
-        let exe = std::env::var("SystemRoot")
-            .ok()
-            .filter(|_| exe.eq_ignore_ascii_case("msiexec.exe") || exe.eq_ignore_ascii_case("msiexec"))
-            .map(|root| format!(r"{root}\System32\msiexec.exe"))
-            .unwrap_or(exe);
+        let exe = if exe.eq_ignore_ascii_case("msiexec.exe") || exe.eq_ignore_ascii_case("msiexec") {
+            crate::garde::windows_program("msiexec.exe").to_string_lossy().into_owned()
+        } else {
+            exe
+        };
         let args = msi_uninstall_args(&exe, &args);
 
         let wide = |s: &str| std::ffi::OsStr::new(s).encode_wide().chain(Some(0)).collect::<Vec<u16>>();

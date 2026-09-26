@@ -1,6 +1,7 @@
 mod elevation;
 mod files;
 mod fsutil;
+mod garde;
 mod junk;
 mod maintenance;
 mod memory;
@@ -135,12 +136,21 @@ fn set_startup_app(id: String, enabled: bool) -> Result<(), String> {
 
 /// Seuls le Bureau et les Téléchargements peuvent être rangés.
 fn organize_dir(folder: &str) -> Result<PathBuf, String> {
-    match folder {
+    let dir = match folder {
         "downloads" => dirs::download_dir(),
         "desktop" => dirs::desktop_dir(),
         _ => None,
     }
-    .ok_or_else(|| "Dossier introuvable".into())
+    .ok_or("Dossier introuvable")?;
+    if !garde::user_dir_allowed(&dir) {
+        return Err("Ce dossier n'est pas dans ton dossier personnel : Kaury Clean n'y touche pas en administrateur".into());
+    }
+    Ok(dir)
+}
+
+/// Les deux dossiers rangeables : l'annulation ne déplace rien ailleurs.
+fn organize_dirs() -> Vec<PathBuf> {
+    ["downloads", "desktop"].iter().filter_map(|f| organize_dir(f).ok()).collect()
 }
 
 /// Rangé dans le dossier de données de l'appli : le désinstalleur le supprime avec le reste.
@@ -169,7 +179,7 @@ fn organize_can_undo() -> bool {
 
 #[tauri::command]
 async fn organize_undo() -> Result<organize::OrganizeReport, String> {
-    blocking(|| organize::undo(&undo_log())).await
+    blocking(|| organize::undo(&undo_log(), &organize_dirs())).await
 }
 
 // ---------- Applis installées ----------
@@ -230,18 +240,21 @@ async fn check_update(app: AppHandle) -> Result<update::UpdateInfo, String> {
     blocking(move || update::check(&current)).await?
 }
 
-/// Télécharge la nouvelle version, lance son installeur puis ferme l'appli pour qu'il puisse la remplacer.
+/// Télécharge la nouvelle version, vérifie sa signature, lance son installeur puis ferme l'appli pour
+/// qu'il puisse la remplacer.
 #[tauri::command]
 async fn install_update(app: AppHandle) -> Result<(), String> {
     let current = app.package_info().version.to_string();
     let emitter = app.clone();
-    let path = blocking(move || {
+    let (locked, path) = blocking(move || {
         update::download(&current, &|pct| {
             let _ = emitter.emit("progress", format!("Téléchargement · {pct} %"));
         })
     })
     .await??;
+    // L'installeur vérifié reste verrouillé jusqu'à son lancement : personne ne peut l'échanger entre-temps.
     update::launch_installer(&path)?;
+    drop(locked);
     app.exit(0);
     Ok(())
 }
