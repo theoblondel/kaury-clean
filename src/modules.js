@@ -77,7 +77,21 @@ async function loadOrganize() {
 }
 
 // ---------- Mémoire vive ----------
-viewLoaders.memory = () => loadMemory();
+// La jauge se met à jour toute seule tant que l'écran Mémoire est ouvert.
+let memoryTimer = null;
+let memoryBusy = false;
+viewLoaders.memory = () => {
+  loadMemory();
+  if (memoryTimer) return;
+  memoryTimer = setInterval(() => {
+    if ($("#v-memory").hidden) {
+      clearInterval(memoryTimer);
+      memoryTimer = null;
+    } else if (!memoryBusy) {
+      loadMemory();
+    }
+  }, 4000);
+};
 $("#memoryBtn").addEventListener("click", () => loadMemory());
 
 async function loadMemory() {
@@ -109,14 +123,17 @@ async function loadMemory() {
     const row = b.closest("[data-exe]");
     const exe = row.dataset.exe;
     const force = b.dataset.force === "1";
+    memoryBusy = true;
     b.disabled = true;
     b.textContent = "Fermeture…";
     try {
       const closed = await invoke("close_app", { exe, force });
       if (closed) {
         toast(`${$(".n", row).textContent} fermé`);
+        memoryBusy = false;
         return loadMemory();
       }
+      // On garde le bouton « Forcer » affiché : pas d'actualisation automatique pendant ce temps.
       // L'appli n'a pas voulu se fermer (fenêtre « Enregistrer ? » ouverte, ou appli bloquée).
       b.dataset.force = "1";
       b.textContent = "Forcer la fermeture";
@@ -127,6 +144,7 @@ async function loadMemory() {
       toast(String(e));
       b.disabled = false;
       b.textContent = "Fermer";
+      memoryBusy = false;
     }
   }));
 }

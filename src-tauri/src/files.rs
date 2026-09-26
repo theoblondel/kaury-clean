@@ -100,7 +100,24 @@ fn walk_files<'a>(
             .flatten()
             .filter(|e| e.file_type().is_file())
             .filter_map(|e| e.metadata().ok().map(|m| (e.into_path(), m)))
+            .filter(|(_, m)| !cloud_only(m))
     })
+}
+
+/// Fichier OneDrive (ou autre cloud) pas téléchargé sur le PC : il ne prend pas de place, et le lire
+/// le téléchargerait. On l'ignore partout.
+#[cfg(windows)]
+fn cloud_only(meta: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const OFFLINE: u32 = 0x1000;
+    const RECALL_ON_OPEN: u32 = 0x4_0000;
+    const RECALL_ON_DATA_ACCESS: u32 = 0x40_0000;
+    meta.file_attributes() & (OFFLINE | RECALL_ON_OPEN | RECALL_ON_DATA_ACCESS) != 0
+}
+
+#[cfg(not(windows))]
+fn cloud_only(_meta: &std::fs::Metadata) -> bool {
+    false
 }
 
 fn entry(path: &Path, meta: &std::fs::Metadata) -> FileEntry {

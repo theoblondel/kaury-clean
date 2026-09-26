@@ -1707,7 +1707,7 @@ dependencies = [
 
 [[package]]
 name = "kaury-clean"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "blake3",
  "dirs",

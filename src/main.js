@@ -87,6 +87,33 @@ async function refreshDisk() {
   } catch (e) { console.error(e); }
 }
 
+// ---------- État du PC (accueil) ----------
+// Trois repères sous l'anneau : disque, mémoire, démarrage. Chacun ouvre son module.
+async function renderHealth() {
+  const box = $("#health");
+  const [disk, mem, startup] = await Promise.all([
+    invoke("disk_info").catch(() => null),
+    invoke("memory_status").catch(() => null),
+    invoke("list_startup_apps").catch(() => null),
+  ]);
+  const tiles = [];
+  if (disk) {
+    const used = Math.round(((disk.total - disk.free) / disk.total) * 100);
+    tiles.push({ go: "large", label: "Disque", value: `${fmt(disk.free)} libres`, level: used >= 90 ? "high" : used >= 80 ? "warn" : "ok" });
+  }
+  if (mem) {
+    const pct = Math.round((mem.used / mem.total) * 100);
+    tiles.push({ go: "memory", label: "Mémoire", value: `${pct} % utilisés`, level: pct >= 85 ? "high" : pct >= 70 ? "warn" : "ok" });
+  }
+  if (startup) {
+    const on = startup.filter((a) => a.enabled).length;
+    tiles.push({ go: "startup", label: "Démarrage", value: `${on} appli${on > 1 ? "s" : ""}`, level: on >= 12 ? "high" : on >= 8 ? "warn" : "ok" });
+  }
+  box.innerHTML = tiles.map((t) => `<button class="tile ${t.level}" data-go="${t.go}"><span class="dot"></span><span><small>${esc(t.label)}</small>${esc(t.value)}</span></button>`).join("");
+  $$("[data-go]", box).forEach((b) => b.addEventListener("click", () => show(b.dataset.go)));
+  box.hidden = !tiles.length || !["idle", "done"].includes(scanState);
+}
+
 // ---------- Anneau animé ----------
 const cv = $("#orb"), ctx = cv.getContext("2d");
 let prog = 0, spin = 0, ringMode = "idle";
@@ -134,6 +161,7 @@ async function runScan() {
   $("#scanTitle").textContent = "Analyse en cours";
   $("#scanText").textContent = "On passe en revue les caches, les fichiers temporaires et la corbeille.";
   $("#stats").hidden = true;
+  $("#health").hidden = true;
   orbVal("…", "analyse");
   progressEl = $("#scanText");
   try {
@@ -177,6 +205,11 @@ function showScanResults() {
     $("#scanBtn").disabled = bytes === 0;
   };
   if (!r.innerHTML.trim()) {
+    const adminOnly = junk.filter(locked).reduce((a, i) => a + i.bytes, 0);
+    if (adminOnly > 0) {
+      r.innerHTML = `<div class="admin-note">${fmt(adminOnly)} à libérer dans les dossiers protégés de Windows.<button class="link" data-admin>Relancer en administrateur</button></div>`;
+      $("[data-admin]", r).addEventListener("click", relaunchAsAdmin);
+    }
     $("#scanTitle").textContent = "Ton PC est déjà tout propre.";
     orbVal("0 o", "à libérer");
     scanState = "done";
@@ -206,6 +239,7 @@ async function runClean(selection, from) {
   show("scan");
   $("#results").hidden = true; $("#resetBtn").hidden = true;
   $("#scanBtn").disabled = true; $("#scanBtn").textContent = "Nettoyage…";
+  $("#health").hidden = true;
   $("#scanTitle").textContent = "Nettoyage en cours";
   ringMode = "spin";
   orbVal(fmt(expected), "à libérer");
@@ -234,6 +268,7 @@ async function runClean(selection, from) {
   scanState = "done";
   $("#scanBtn").disabled = false; $("#scanBtn").textContent = "Nouvelle analyse";
   addFreed(report.freed);
+  renderHealth();
   junk = null;
   renderJunkEverywhere();
   refreshDisk();
@@ -333,18 +368,23 @@ function renderFileList(box, groups, { preselect, onDone }) {
     return;
   }
   const isDupes = preselect;
-  box.innerHTML = `<div class="list">${groups.map((grp) => `
+  box.innerHTML = `<div class="list">${groups.map((grp, g) => `
     ${isDupes ? `<div class="group-title"><b>${esc(grp.files[0].name)}</b><span>${grp.files.length} copies · ${fmt(grp.bytes)} chacune</span></div>` : ""}
     ${grp.files.map((f, i) => `
-      <label class="item"><input type="checkbox" value="${esc(f.path)}" data-bytes="${f.bytes}" ${isDupes && i > 0 ? "checked" : ""}>
+      <label class="item"><input type="checkbox" value="${esc(f.path)}" data-bytes="${f.bytes}" data-group="${g}" ${isDupes && i > 0 ? "checked" : ""}>
         <span class="txt"><div class="n">${esc(isDupes ? f.folder : f.name)}${isDupes && i === 0 ? `<span class="chip ok">la plus récente</span>` : ""}<span class="chip ${!isDupes && f.bytes > 4 * 1024 ** 3 ? "high" : ""}">${esc(ago(f.modified))}</span></div>
         <div class="p">${esc(isDupes ? f.name : f.folder)}</div></span>
         <span class="end"><button class="reveal" data-reveal="${esc(f.path)}" title="Afficher dans l'Explorateur">Afficher</button><span class="s">${fmt(f.bytes)}</span></span></label>`).join("")}`).join("")}</div>
-    <div class="foot"><span>Sélection : <b class="sel"></b></span><button class="cta small" data-trash>Mettre à la corbeille</button></div>`;
+    <div class="foot"><span>Sélection : <b class="sel"></b><span class="warn-text" hidden></span></span><button class="cta small" data-trash>Mettre à la corbeille</button></div>`;
   const update = () => {
     const bytes = sumChecked(box);
     $(".sel", box).textContent = fmt(bytes);
-    $("[data-trash]", box).disabled = bytes === 0;
+    // Doublons : on refuse de supprimer toutes les copies d'un même fichier.
+    const allGone = isDupes && groups.some((grp, g) => $$(`input[data-group="${g}"]:not(:checked)`, box).length === 0);
+    const warn = $(".warn-text", box);
+    warn.hidden = !allGone;
+    warn.textContent = " · garde au moins une copie de chaque fichier";
+    $("[data-trash]", box).disabled = bytes === 0 || allGone;
   };
   $$("input", box).forEach((i) => i.addEventListener("change", update));
   $$("[data-reveal]", box).forEach((b) => b.addEventListener("click", (e) => {
@@ -357,7 +397,7 @@ function renderFileList(box, groups, { preselect, onDone }) {
     $("[data-trash]", box).disabled = true;
     try {
       const r = await invoke("move_to_trash", { paths });
-      toast(`${r.moved} fichier${r.moved > 1 ? "s" : ""} à la corbeille · ${fmt(r.bytes)}` + (r.errors.length ? ` · ${r.errors.length} impossible(s)` : ""));
+      toast(`${r.moved} fichier${r.moved > 1 ? "s" : ""} à la corbeille (${fmt(r.bytes)}). Vide la corbeille pour récupérer la place.` + (r.errors.length ? ` ${r.errors.length} impossible(s).` : ""));
       if (r.errors.length) console.warn(r.errors);
     } catch (e) {
       toast("Impossible de déplacer les fichiers : " + e);
@@ -384,14 +424,17 @@ async function loadStartup() {
     box.innerHTML = `<div class="empty">Aucune appli ne se lance au démarrage.</div>`;
     return;
   }
-  box.innerHTML = `<div class="list">${apps.map((a) => `
+  const lockedApp = (a) => a.scope === "machine" && !elevated;
+  box.innerHTML = `${apps.some(lockedApp) ? `<div class="admin-note left above">Les applis « tous les comptes » se modifient avec les droits administrateur.<button class="link" data-admin>Relancer en administrateur</button></div>` : ""}
+    <div class="list">${apps.map((a) => `
     <div class="item"><span class="ic">${esc(a.name.trim()[0] || "?")}</span>
       <span class="txt"><div class="n">${esc(a.name)}${a.scope === "machine" ? `<span class="chip">tous les comptes · admin</span>` : ""}</div>
       <div class="p" title="${esc(a.command)}">${esc(a.command)}</div></span>
-      <button class="toggle" role="switch" data-id="${esc(a.id)}" aria-label="${esc(a.name)} au démarrage" aria-checked="${a.enabled}"></button></div>`).join("")}</div>
+      <button class="toggle" role="switch" data-id="${esc(a.id)}" aria-label="${esc(a.name)} au démarrage" aria-checked="${a.enabled}" ${lockedApp(a) ? "disabled" : ""}></button></div>`).join("")}</div>
     <div class="foot"><span>Activées : <b class="sel"></b></span></div>`;
   const update = () => ($(".sel", box).textContent = `${$$('[aria-checked="true"]', box).length} sur ${apps.length}`);
   update();
+  $("[data-admin]", box)?.addEventListener("click", relaunchAsAdmin);
   $$(".toggle", box).forEach((t) => t.addEventListener("click", async () => {
     const enabled = t.getAttribute("aria-checked") !== "true";
     t.disabled = true;
@@ -415,6 +458,12 @@ async function relaunchAsAdmin() {
   }
 }
 
+// F5, Ctrl+R, Ctrl+Maj+I… : recharger la page remettrait l'appli à zéro en plein nettoyage.
+document.addEventListener("keydown", (e) => {
+  const k = e.key.toLowerCase();
+  if (k === "f5" || (e.ctrlKey && (k === "r" || k === "p" || (e.shiftKey && (k === "i" || k === "j" || k === "c"))))) e.preventDefault();
+});
+
 // Menu clic droit du navigateur (Recharger, Inspecter…) : inutile dans une appli.
 document.addEventListener("contextmenu", (e) => {
   if (!e.target.closest(".p")) e.preventDefault();
@@ -430,6 +479,7 @@ document.addEventListener("contextmenu", (e) => {
   renderJunkEverywhere();
   renderStats();
   refreshDisk();
+  renderHealth();
 })();
 
 // ---------- Mode démo (ouverture dans un navigateur, sans Tauri) ----------
@@ -444,7 +494,7 @@ function demoInvoke(cmd, args) {
     return { path, name: path.slice(i + 1), folder: path.slice(0, i), bytes, modified: now - daysOld * day };
   };
   switch (cmd) {
-    case "app_info": return wait(20, { version: "0.2.0", elevated: false });
+    case "app_info": return wait(20, { version: "0.4.0", elevated: false });
     case "relaunch_as_admin": return Promise.reject("Mode démo");
     case "reveal_file": return Promise.reject("Mode démo : l'Explorateur s'ouvre seulement dans l'appli");
     case "disk_info": return wait(50, { name: "C:", total: 476 * GB, free: 61.2 * GB });
@@ -518,10 +568,12 @@ function demoInvoke(cmd, args) {
     ] });
     case "close_app": return wait(800, args.force || args.exe !== "Adobe Premiere Pro.exe");
     case "list_maintenance": return wait(50, [
+      { id: "restore_point", name: "Créer un point de restauration", detail: "Une sauvegarde de l'état de Windows, pour revenir en arrière si une réparation ou une désinstallation se passe mal. Active la protection du système si elle est coupée. À faire avant les autres tâches.", duration: "1 à 2 min", needs_admin: true },
       { id: "repair_windows", name: "Réparer Windows", detail: "Vérifie et répare les fichiers système abîmés (DISM puis SFC). À faire si Windows plante, affiche des erreurs bizarres ou si des applis ne s'ouvrent plus. Il faut Internet.", duration: "15 à 30 min", needs_admin: true },
       { id: "component_cleanup", name: "Supprimer les anciennes versions de Windows", detail: "Retire les composants remplacés par les mises à jour. Libère souvent plusieurs Go.", duration: "5 à 15 min", needs_admin: true },
       { id: "optimize_drive", name: "Optimiser le disque", detail: "Envoie TRIM à un SSD ou défragmente un disque dur, selon ton matériel. Garde le disque rapide.", duration: "1 à 10 min", needs_admin: true },
       { id: "check_disk", name: "Vérifier le disque", detail: "Cherche les erreurs du système de fichiers sans redémarrer.", duration: "2 à 10 min", needs_admin: true },
+      { id: "hibernate_off", name: "Désactiver la veille prolongée", detail: "Supprime le fichier hiberfil.sys, souvent aussi gros que la moitié de ta RAM. Utile sur un PC fixe ; sur un portable, garde-la si tu utilises la veille prolongée. Le démarrage rapide de Windows est aussi désactivé.", duration: "quelques secondes", needs_admin: true },
       { id: "flush_dns", name: "Vider le cache DNS", detail: "Règle les sites qui ne chargent plus ou qui affichent une ancienne version.", duration: "quelques secondes", needs_admin: false },
       { id: "restart_explorer", name: "Redémarrer l'Explorateur", detail: "Débloque la barre des tâches, le menu Démarrer ou le Bureau quand ils sont figés.", duration: "quelques secondes", needs_admin: false },
       { id: "refresh_icons", name: "Rafraîchir les icônes", detail: "Corrige les icônes blanches ou mauvaises sur le Bureau et dans l'Explorateur.", duration: "quelques secondes", needs_admin: false },

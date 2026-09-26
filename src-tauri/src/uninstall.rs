@@ -37,9 +37,22 @@ pub fn split_command(cmd: &str) -> (String, String) {
     }
 }
 
+/// Beaucoup d'applis MSI déclarent `MsiExec.exe /I{GUID}`, qui ouvre l'écran « Modifier / Réparer ».
+/// On demande directement la désinstallation (`/X{GUID}`).
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn msi_uninstall_args(exe: &str, args: &str) -> String {
+    // Découpage à la main : le chemin est un chemin Windows, même quand les tests tournent ailleurs.
+    let name = exe.rsplit(['\\', '/']).next().unwrap_or(exe).to_ascii_lowercase();
+    let is_msiexec = name == "msiexec.exe" || name == "msiexec";
+    match args.get(..2) {
+        Some(flag) if is_msiexec && flag.eq_ignore_ascii_case("/i") => format!("/X{}", &args[2..]),
+        _ => args.to_string(),
+    }
+}
+
 #[cfg(windows)]
 mod imp {
-    use super::{split_command, InstalledApp};
+    use super::{msi_uninstall_args, split_command, InstalledApp};
     use std::collections::HashSet;
     use winreg::enums::*;
     use winreg::{RegKey, HKEY};
@@ -112,6 +125,7 @@ mod imp {
             .filter(|_| exe.eq_ignore_ascii_case("msiexec.exe") || exe.eq_ignore_ascii_case("msiexec"))
             .map(|root| format!(r"{root}\System32\msiexec.exe"))
             .unwrap_or(exe);
+        let args = msi_uninstall_args(&exe, &args);
 
         let wide = |s: &str| std::ffi::OsStr::new(s).encode_wide().chain(Some(0)).collect::<Vec<u16>>();
         let (verb, file, params) = (wide("open"), wide(&exe), wide(&args));
@@ -142,7 +156,15 @@ pub use imp::{list, uninstall};
 
 #[cfg(test)]
 mod tests {
-    use super::split_command;
+    use super::{msi_uninstall_args, split_command};
+
+    #[test]
+    fn turns_msi_repair_into_uninstall() {
+        assert_eq!(msi_uninstall_args("MsiExec.exe", "/I{1234-ABCD}"), "/X{1234-ABCD}");
+        assert_eq!(msi_uninstall_args(r"C:\Windows\System32\msiexec.exe", "/i{AB} /qb"), "/X{AB} /qb");
+        assert_eq!(msi_uninstall_args("MsiExec.exe", "/X{1234}"), "/X{1234}");
+        assert_eq!(msi_uninstall_args(r"C:\App\unins000.exe", "/I"), "/I");
+    }
 
     #[test]
     fn splits_quoted_commands() {

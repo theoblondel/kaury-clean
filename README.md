@@ -39,13 +39,15 @@
 
 | Tâche | Ce qu'elle fait |
 | --- | --- |
+| **Créer un point de restauration** | Sauvegarde l'état de Windows avant une réparation, pour pouvoir revenir en arrière. |
 | **Réparer Windows** | DISM puis SFC : répare les fichiers système abîmés. |
 | **Supprimer les anciennes versions de Windows** | Nettoyage des composants (DISM), libère souvent plusieurs Go. |
 | **Optimiser le disque** | TRIM pour un SSD, défragmentation pour un disque dur. |
 | **Vérifier le disque** | `chkdsk /scan`, sans redémarrer. |
+| **Désactiver la veille prolongée** | Supprime `hiberfil.sys` (souvent plusieurs Go). Réactivable avec `powercfg /h on`. |
 | **Vider le cache DNS**, **Redémarrer l'Explorateur**, **Rafraîchir les icônes**, **Réparer le Microsoft Store** | Les petites réparations du quotidien. |
 
-Les recherches longues affichent leur progression et peuvent être arrêtées. L'appli garde le compte de l'espace libéré depuis l'installation.
+L'accueil affiche l'état du PC (disque, mémoire, applis au démarrage). Les tâches longues affichent leur pourcentage, et les recherches peuvent être arrêtées. L'appli garde le compte de l'espace libéré depuis l'installation.
 
 #### Et la RAM ?
 
@@ -61,6 +63,8 @@ Kaury Clean démarre sans droits particuliers. Les dossiers protégés de Window
 - Les fichiers temporaires de moins de 24 h sont gardés, et les fichiers utilisés par une appli ouverte sont ignorés.
 - Les liens et jonctions ne sont jamais suivis : on ne sort jamais du dossier nettoyé.
 - Gros fichiers et doublons partent **à la corbeille**, jamais supprimés directement, et seulement depuis tes dossiers perso.
+- Doublons : impossible de supprimer toutes les copies d'un même fichier.
+- OneDrive : les fichiers restés dans le cloud sont ignorés. Ils ne prennent pas de place, et les lire les téléchargerait.
 - Démarrage : rien n'est supprimé, l'appli est juste marquée « désactivée ». Un clic pour la réactiver.
 - Rangement : seuls les fichiers directement dans le dossier bougent, jamais les sous-dossiers ni les raccourcis. Aucun fichier n'est écrasé et le dernier rangement s'annule d'un clic.
 - Désinstaller et Maintenance : seuls les désinstalleurs officiels et les outils de Windows sont lancés, avec des commandes fixées dans le code.
