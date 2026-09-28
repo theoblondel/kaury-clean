@@ -1,149 +1,147 @@
 <p align="center">
-  <img src="design/behance/01-couverture.png" alt="Kaury Clean : ton PC, tout propre." width="100%">
+  <img src="design/behance/en/01-couverture.png" alt="Kaury Clean: your PC, all clean." width="100%">
 </p>
 
 <p align="center">
-  <a href="https://github.com/theoblondel/kaury-clean/releases/latest"><img src="https://img.shields.io/github/v/release/theoblondel/kaury-clean?style=for-the-badge&color=F56E2E&labelColor=1C1A1A&label=version" alt="Dernière version"></a>
-  <a href="https://github.com/theoblondel/kaury-clean/releases"><img src="https://img.shields.io/github/downloads/theoblondel/kaury-clean/total?style=for-the-badge&color=F1E8CB&labelColor=1C1A1A&label=t%C3%A9l%C3%A9chargements" alt="Téléchargements"></a>
-  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-F1E8CB?style=for-the-badge&labelColor=1C1A1A" alt="Windows 10 et 11">
-  <a href="https://github.com/theoblondel/kaury-clean/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/theoblondel/kaury-clean/build.yml?branch=main&style=for-the-badge&labelColor=1C1A1A&label=build" alt="Compilation"></a>
+  <a href="https://github.com/theoblondel/kaury-clean/releases/latest"><img src="https://img.shields.io/github/v/release/theoblondel/kaury-clean?style=for-the-badge&color=F56E2E&labelColor=1C1A1A&label=version" alt="Latest version"></a>
+  <a href="https://github.com/theoblondel/kaury-clean/releases"><img src="https://img.shields.io/github/downloads/theoblondel/kaury-clean/total?style=for-the-badge&color=F1E8CB&labelColor=1C1A1A&label=downloads" alt="Downloads"></a>
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-F1E8CB?style=for-the-badge&labelColor=1C1A1A" alt="Windows 10 and 11">
+  <a href="https://github.com/theoblondel/kaury-clean/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/theoblondel/kaury-clean/build.yml?branch=main&style=for-the-badge&labelColor=1C1A1A&label=build" alt="Build"></a>
 </p>
 
 <p align="center">
-  <b>Un nettoyeur de PC Windows simple, beau et honnête.</b><br>
-  L'esprit de CleanMyMac, la chaleur de <a href="https://kaury.studio">Kaury Studio</a>.
+  <b>A simple, beautiful and honest Windows PC cleaner.</b><br>
+  It only touches what piles up for nothing, and shows you everything first.<br>
+  Built in Rust with Tauri: a 1.6 MB installer, no ads, no account, no telemetry.
 </p>
 
 <p align="center">
-  <a href="https://github.com/theoblondel/kaury-clean/releases/latest"><img src="https://img.shields.io/badge/T%C3%A9l%C3%A9charger%20pour%20Windows-F56E2E?style=for-the-badge&logo=windows&logoColor=1C1A1A" alt="Télécharger pour Windows" height="42"></a>
+  <a href="https://github.com/theoblondel/kaury-clean/releases/latest"><img src="https://img.shields.io/badge/Download%20for%20Windows-F56E2E?style=for-the-badge&logo=windows&logoColor=1C1A1A" alt="Download for Windows" height="42"></a>
 </p>
 
-<p align="center"><sub>🇬🇧 A simple, beautiful and honest Windows PC cleaner by Kaury Studio. Smart scan, cleanup, performance, uninstaller, file tidying and Windows repair tools, all in one app.</sub></p>
+<p align="center"><b>English</b> · <a href="README.fr.md">Français</a></p>
+
+<p align="center"><sub>Like Kaury Clean? A ⭐ at the top right helps other people find it.</sub></p>
+
+> The app interface is in French.
 
 ---
 
-## Entretien intelligent
+## Smart care
 
-Un seul bouton. Kaury Clean passe en revue les fichiers inutiles, les applis au démarrage, la mémoire, le disque, les applis installées et les vieux téléchargements, puis présente un bilan en cartes. **Lancer** nettoie ce qui est sûr, section par section, et vide le cache DNS. Le reste t'attend dans chaque section.
+One button. Kaury Clean reviews junk files, startup apps, memory, disk, installed apps and old downloads, then shows a summary as cards. **Run** cleans what is safe, section by section, and flushes the DNS cache. Everything else waits for you in its own section.
 
 <table>
   <tr>
-    <td width="50%"><img src="design/screens/home.jpg" alt="Accueil : Entretien intelligent"></td>
-    <td width="50%"><img src="design/screens/results.jpg" alt="Bilan de l'analyse en cartes"></td>
+    <td width="50%"><img src="design/screens/home.jpg" alt="Home: smart care"></td>
+    <td width="50%"><img src="design/screens/results.jpg" alt="Scan results as cards"></td>
   </tr>
   <tr>
-    <td><img src="design/screens/running.jpg" alt="Nettoyage section par section"></td>
-    <td><img src="design/screens/done.jpg" alt="Bravo ! Ton PC est en pleine forme."></td>
+    <td><img src="design/screens/running.jpg" alt="Cleaning section by section"></td>
+    <td><img src="design/screens/done.jpg" alt="Done: your PC is in great shape"></td>
   </tr>
 </table>
 
 ## Six sections
 
-| | Section | Ce qu'elle fait |
+| | Section | What it does |
 | --- | --- | --- |
-| 🧹 | **Nettoyage** | Fichiers système (temporaires, Windows Update, rapports d'erreur, cache graphique), caches d'applis (Adobe, Spotify, Discord, Steam, npm), navigateurs (Chrome, Edge, Brave, Firefox) et corbeille. |
-| ⚡ | **Performances** | **Mémoire vive** : les applis qui remplissent la RAM, fermées proprement ou de force. **Démarrage** : active ou désactive les applis lancées avec Windows. |
-| 🧩 | **Applications** | Toutes les applis installées avec leur taille, recherche et tri. Lance le désinstalleur officiel. |
-| 📁 | **Mes fichiers** | **Gros fichiers**, **doublons** (comparés par leur contenu), **vieux téléchargements**, et **rangement** de Téléchargements ou du Bureau par type, annulable. |
-| 🔧 | **Réparation** | Point de restauration, réparation de Windows (DISM + SFC), anciennes versions de Windows, optimisation et vérification du disque, veille prolongée, cache DNS, Explorateur, icônes, Microsoft Store. |
-| ✦ | **Kaury Clean** | La page du studio (site, Behance, Instagram, contact) et les mises à jour. |
+| 🧹 | **Cleanup** | System files (temp files, Windows Update, error reports, graphics cache), app caches (Adobe, Spotify, Discord, Slack, Teams, WhatsApp, Steam, Epic Games, VS Code, Cursor, npm, Yarn, pip, uv), browsers (Chrome, Edge, Brave, Firefox, Opera, Vivaldi) and the Recycle Bin. |
+| ⚡ | **Performance** | **Memory**: the apps filling your RAM, closed gracefully or forced. **Startup**: turn apps launched with Windows on or off. |
+| 🧩 | **Applications** | Every installed app with its size, search and sort. Runs the official uninstaller. |
+| 📁 | **My files** | **Disk map** (what takes up space, read-only), **large files**, **duplicates** (compared by content), **old downloads**, and **tidying** of Downloads or the Desktop by type, with undo. |
+| 🔧 | **Repair** | Restore point, Windows repair (DISM + SFC), previous Windows installations, disk optimization and check, hibernation, DNS cache, Explorer, icons, Microsoft Store. |
+| ✦ | **Kaury Clean** | The studio page (website, Behance, Instagram, contact) and updates. |
 
 <table>
   <tr>
-    <td width="33%"><img src="design/screens/clean.jpg" alt="Nettoyage"></td>
-    <td width="33%"><img src="design/screens/memory.jpg" alt="Mémoire vive"></td>
-    <td width="33%"><img src="design/screens/uninstall.jpg" alt="Désinstaller"></td>
+    <td width="33%"><img src="design/screens/clean.jpg" alt="Cleanup"></td>
+    <td width="33%"><img src="design/screens/memory.jpg" alt="Memory"></td>
+    <td width="33%"><img src="design/screens/uninstall.jpg" alt="Uninstall"></td>
   </tr>
   <tr>
-    <td><img src="design/screens/organize.jpg" alt="Ranger mes fichiers"></td>
-    <td><img src="design/screens/maintenance.jpg" alt="Réparation"></td>
-    <td><img src="design/screens/about.jpg" alt="À propos"></td>
+    <td><img src="design/screens/organize.jpg" alt="Tidy my files"></td>
+    <td><img src="design/screens/maintenance.jpg" alt="Repair"></td>
+    <td><img src="design/screens/about.jpg" alt="About"></td>
   </tr>
 </table>
 
-## Principes
+## Principles
 
-- **Rien ne part sans toi.** Tu vois chaque élément avant de nettoyer. Gros fichiers et doublons passent par la corbeille.
-- **Toujours réversible quand c'est possible.** Les applis au démarrage sont désactivées, pas supprimées. Le rangement s'annule d'un clic.
-- **Pas de faux « nettoyage de RAM ».** Windows gère déjà la mémoire : vider la RAM ne fait que la remplir à nouveau en ralentissant le PC. Kaury Clean montre les applis gourmandes et te laisse les fermer.
-- **Pas de nettoyage du registre.** Il n'accélère rien et peut casser Windows.
-- **OneDrive respecté.** Les fichiers restés dans le cloud ne sont jamais lus, donc jamais téléchargés.
-- **Les outils de Windows.** Les réparations passent par DISM, SFC, chkdsk et les points de restauration, pas par des recettes maison.
+- **Nothing goes without you.** You see every item before cleaning. Large files and duplicates go to the Recycle Bin.
+- **Reversible whenever possible.** Startup apps are disabled, not deleted. Tidying can be undone in one click.
+- **No fake "RAM cleaning".** Windows already manages memory: emptying RAM only fills it again while slowing the PC down. Kaury Clean shows the hungry apps and lets you close them.
+- **No registry cleaning.** It speeds nothing up and can break Windows.
+- **OneDrive respected.** Files left in the cloud are never read, so never downloaded.
+- **Windows' own tools.** Repairs go through DISM, SFC, chkdsk and restore points, not home-made recipes.
 
 <details>
-<summary><b>Sécurité, dans le détail</b></summary>
+<summary><b>Security, in detail</b></summary>
 
-- Les dossiers nettoyés sont fixés dans le code Rust. L'interface n'envoie que des identifiants, jamais de chemins.
-- Les fichiers temporaires de moins de 24 h sont gardés, et les fichiers utilisés par une appli ouverte sont ignorés.
-- Les liens et jonctions ne sont jamais suivis : on ne sort jamais du dossier nettoyé. Chaque fichier est effacé par son vrai emplacement, vérifié au moment même de l'effacer : un dossier remplacé en douce par une jonction vers Windows ne mène nulle part.
-- Gros fichiers et doublons : seulement dans tes dossiers perso, et impossible de supprimer toutes les copies d'un même fichier.
-- Rangement : seuls les fichiers directement dans le dossier bougent, jamais les sous-dossiers ni les raccourcis, et aucun fichier n'est écrasé.
-- Désinstaller et Réparation : seuls les désinstalleurs officiels et les outils de Windows sont lancés, avec des commandes fixées dans le code.
-- Mémoire vive : les processus de Windows ne sont jamais proposés à la fermeture.
-- Mises à jour : chaque installeur est signé avec une clé qui ne quitte jamais le PC de Kaury Studio. Sans signature valide, rien n'est lancé, même publié sur ce repo. L'installeur vérifié reste verrouillé jusqu'à son lancement.
-- Droits administrateur : l'appli démarre sans. Les dossiers protégés de Windows sont signalés « admin » et décochés, avec un lien pour relancer en administrateur.
-- En administrateur, l'appli ne peut pas servir de relais à un autre programme : les dossiers de ton compte ne sont touchés que s'ils sont vraiment dans ton dossier personnel (une variable TEMP ou un dossier Documents détourné vers Windows est ignoré), les outils de Windows sont lancés par leur chemin complet, les applis installées pour ton compte seul ne se désinstallent pas avec ces droits, et l'annulation d'un rangement refuse tout déplacement qu'elle n'a pas fait elle-même. Tes fichiers perso (corbeille, rangement) ne se déplacent jamais avec ces droits, et les variables `WEBVIEW2_*`, qui permettraient de remplacer le moteur d'affichage, sont ignorées.
+- Cleaned folders are hard-coded in Rust. The interface only sends identifiers, never paths.
+- Temp files younger than 24 hours are kept, and files in use by an open app are skipped.
+- Links and junctions are never followed: cleaning never leaves the target folder. Each file is deleted through its real location, checked at the very moment of deletion: a folder secretly swapped for a junction to Windows leads nowhere.
+- Large files and duplicates: only in your personal folders, and you can never delete every copy of the same file.
+- Tidying: only files directly inside the folder move, never subfolders or shortcuts, and no file is ever overwritten.
+- Repair: only official uninstallers and Windows tools are launched, with commands fixed in the code.
+- Memory: Windows processes are never offered for closing.
+- Updates: every installer is signed with a key that never leaves Kaury Studio's PC. Without a valid signature nothing runs, even if published on this repo. The verified installer stays locked until it is launched.
+- Admin rights: the app starts without them. Protected Windows folders are flagged "admin" and unchecked, with a link to relaunch as administrator.
+- As administrator, the app cannot be used as a relay by another program: your account's folders are only touched if they really are in your profile (a TEMP variable or a Documents folder redirected to Windows is ignored), Windows tools are launched by their full path, apps installed for your account only are not uninstalled with those rights, and undoing a tidy-up refuses any move it did not make itself. Your personal files (Recycle Bin, tidying) never move with those rights, and `WEBVIEW2_*` variables, which could swap the rendering engine, are ignored.
 
 </details>
 
-## Installer
+## Install
 
-1. Télécharge `Kaury.Clean_…_x64-setup.exe` depuis la **[dernière release](https://github.com/theoblondel/kaury-clean/releases/latest)**.
-2. Ouvre-le. Si Windows affiche « Windows a protégé votre ordinateur », clique sur **Informations complémentaires** puis **Exécuter quand même** : l'appli n'est pas encore signée avec un certificat.
-3. Kaury Clean s'installe dans Programmes, avec un raccourci dans le menu Démarrer (dossier Kaury Studio) et sur le Bureau. Il se désinstalle depuis **Paramètres > Applications**.
+1. Download `Kaury.Clean_…_x64-setup.exe` from the **[latest release](https://github.com/theoblondel/kaury-clean/releases/latest)**.
+2. Open it. If Windows shows "Windows protected your PC", click **More info** then **Run anyway**: the app is not signed with a code-signing certificate yet.
+3. Kaury Clean installs in Program Files, with a shortcut in the Start menu (Kaury Studio folder) and on the Desktop. Uninstall it from **Settings > Apps**.
 
-**Mises à jour :** à chaque ouverture, Kaury Clean vérifie s'il existe une nouvelle version et propose de l'installer en un clic. L'installeur téléchargé par l'appli remplace l'ancienne version et garde tes réglages.
+**Updates:** each time it opens, Kaury Clean checks for a new version and offers to install it in one click. The installer replaces the previous version and keeps your settings.
 
-## Développer
+## Develop
 
-Il faut [Node.js](https://nodejs.org) et [Rust](https://rustup.rs).
+You need [Node.js](https://nodejs.org) and [Rust](https://rustup.rs).
 
 ```bash
 npm install
-npm run dev      # lance l'appli
-npm run build    # crée l'installeur Windows
+npm run dev      # run the app
+npm run build    # build the Windows installer
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-L'interface est en HTML, CSS et JavaScript, sans framework. Ouverte directement dans un navigateur (`src/index.html`), elle tourne en **mode démo** avec des données d'exemple, pratique pour travailler le design. Le moteur est en Rust avec [Tauri 2](https://tauri.app).
+The interface is plain HTML, CSS and JavaScript, no framework. Opened directly in a browser (`src/index.html`), it runs in **demo mode** with sample data, handy for design work. The engine is Rust with [Tauri 2](https://tauri.app).
 
 ```
 src/
   index.html, styles.css
-  main.js             navigation, entretien intelligent, nettoyage, fichiers, démarrage
-  modules.js          vieux téléchargements, rangement, mémoire, désinstaller, réparation, À propos, mises à jour
+  main.js             navigation, smart care, cleanup, files, startup
+  modules.js          old downloads, tidying, memory, uninstall, repair, about, updates
 src-tauri/src/
-  junk.rs             fichiers inutiles : analyse et nettoyage
-  files.rs            gros fichiers, doublons, vieux téléchargements, corbeille
-  organize.rs         rangement des dossiers par type
-  memory.rs           mémoire vive et fermeture d'applis
-  startup.rs          applis au démarrage
-  uninstall.rs        applis installées
-  maintenance.rs      outils de réparation de Windows
-  update.rs           vérification et installation des mises à jour
-  elevation.rs        droits administrateur, ouverture des liens
-  fsutil.rs           mesure et vidage de dossiers
+  junk.rs             junk files: scan and cleanup
+  garde.rs            safety checks: real paths, admin rules, full tool paths
+  files.rs            large files, duplicates, old downloads, Recycle Bin
+  space.rs            disk map (read-only)
+  organize.rs         tidying folders by type
+  memory.rs           memory and closing apps
+  startup.rs          startup apps
+  uninstall.rs        installed apps
+  maintenance.rs      Windows repair tools
+  update.rs           checking and installing signed updates
+  elevation.rs        admin rights, opening links
+  fsutil.rs           measuring and emptying folders
 design/
-  logo.svg, k.svg     icône de l'appli et monogramme Kaury
-  screens/            captures de l'appli
-  behance/            visuels de présentation (FR, et EN dans behance/en)
+  logo.svg, k.svg     app icon and Kaury monogram
+  screens/            app screenshots
+  behance/            presentation visuals (FR, and EN in behance/en)
 ```
 
-### Publier une nouvelle version
-
-1. Change le numéro de version dans `package.json`, `src-tauri/Cargo.toml` et `src-tauri/tauri.conf.json`, puis pousse sur `main`.
-2. Sur GitHub : **Releases** > **Draft a new release** > **Choose a tag**, tape `v0.8.0` et choisis **Create new tag**. Clique sur **Publish release**.
-3. GitHub Actions compile l'installeur et l'ajoute à la release (environ 5 minutes).
-4. Une fois le build terminé, signe l'installeur depuis ton PC : `npm run signer`. Le fichier `.sig` est ajouté à la release, et les applis déjà installées proposent alors la mise à jour à leur prochaine ouverture. Sans cette étape, elles ne la proposent pas.
-
-La clé de signature se crée une seule fois (`npm run cle`) et vit dans `%USERPROFILE%\.kaury-clean\`, jamais dans ce repo. Garde-en une sauvegarde : sans elle, les versions installées n'accepteront plus aucune mise à jour.
-
-Chaque push sur `main` compile aussi l'installeur (onglet **Actions**, artefact `kaury-clean-windows`), pratique pour tester avant de publier.
+Release steps are described in the [French README](README.fr.md#publier-une-nouvelle-version).
 
 ---
 
 <p align="center">
   <img src="design/logo.svg" width="56" alt=""><br>
-  Conçu et développé par <a href="https://kaury.studio"><b>Kaury Studio</b></a>, Vevey<br>
+  Designed and built by <a href="https://kaury.studio"><b>Kaury Studio</b></a>, Vevey, Switzerland<br>
   <a href="https://www.behance.net/kaurystudio">Behance</a> · <a href="https://www.instagram.com/kaury.studio/">Instagram</a> · <a href="mailto:hello@kaury.studio">hello@kaury.studio</a>
 </p>
