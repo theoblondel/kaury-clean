@@ -1,6 +1,6 @@
 [package]
 name = "kaury-clean"
-version = "0.8.0"
+version = "0.9.0"
 description = "Kaury Clean, un nettoyeur de PC Windows"
 authors = ["Kaury Studio"]
 edition = "2021"
