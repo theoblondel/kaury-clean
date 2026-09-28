@@ -2,6 +2,7 @@ mod elevation;
 mod files;
 mod fsutil;
 mod garde;
+mod langue;
 mod junk;
 mod maintenance;
 mod memory;
@@ -11,6 +12,7 @@ mod startup;
 mod uninstall;
 mod update;
 
+use crate::langue::{tr, anglais};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 
@@ -28,6 +30,12 @@ fn reporter(app: AppHandle) -> impl Fn(&str) {
     move |label: &str| {
         let _ = app.emit("progress", label);
     }
+}
+
+/// Langue des textes du moteur, choisie par l'interface au démarrage.
+#[tauri::command]
+fn set_language(lang: String) {
+    langue::choisir(&lang);
 }
 
 #[derive(Serialize)]
@@ -87,7 +95,7 @@ async fn search<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Re
     files::CANCEL.store(false, Ordering::Relaxed);
     let result = blocking(f).await?;
     if files::cancelled() {
-        return Err("Recherche arrêtée".into());
+        return Err(tr("Recherche arrêtée", "Search stopped").into());
     }
     Ok(result)
 }
@@ -109,7 +117,7 @@ async fn find_duplicates(app: AppHandle) -> Result<Vec<files::DuplicateGroup>, S
 
 #[tauri::command]
 async fn find_old_downloads(app: AppHandle, min_days: u64) -> Result<Vec<files::FileEntry>, String> {
-    let downloads = dirs::download_dir().ok_or("Dossier Téléchargements introuvable")?;
+    let downloads = dirs::download_dir().ok_or(tr("Dossier Téléchargements introuvable", "Downloads folder not found"))?;
     search(move || files::old_downloads(&downloads, min_days, &reporter(app))).await
 }
 
@@ -135,9 +143,9 @@ fn reveal_file(path: String) -> Result<(), String> {
 /// raccourci au bon moment pour faire déplacer un fichier dans Windows ou hors de Windows.
 fn without_admin() -> Result<(), String> {
     if elevation::is_elevated() {
-        return Err(concat!(
-            "par sécurité, tes fichiers perso ne se déplacent pas en mode administrateur. ",
-            "Ferme Kaury Clean et rouvre-le normalement."
+        return Err(tr(
+            "par sécurité, tes fichiers perso ne se déplacent pas en mode administrateur. Ferme Kaury Clean et rouvre-le normalement.",
+            "for safety, your personal files are never moved in administrator mode. Close Kaury Clean and open it normally.",
         )
         .into());
     }
@@ -169,9 +177,9 @@ fn organize_dir(folder: &str) -> Result<PathBuf, String> {
         "desktop" => dirs::desktop_dir(),
         _ => None,
     }
-    .ok_or("Dossier introuvable")?;
+    .ok_or(tr("Dossier introuvable", "Folder not found"))?;
     if !garde::user_dir_allowed(&dir) {
-        return Err("Ce dossier n'est pas dans ton dossier personnel : Kaury Clean n'y touche pas en administrateur".into());
+        return Err(tr("Ce dossier n'est pas dans ton dossier personnel : Kaury Clean n'y touche pas en administrateur", "This folder isn't in your user folder: Kaury Clean doesn't touch it as administrator").into());
     }
     Ok(dir)
 }
@@ -259,7 +267,7 @@ fn open_link(link: String) -> Result<(), String> {
         "instagram" => "https://www.instagram.com/kaury.studio/",
         "email" => "mailto:hello@kaury.studio",
         "releases" => "https://github.com/theoblondel/kaury-clean/releases",
-        _ => return Err("Lien inconnu".into()),
+        _ => return Err(tr("Lien inconnu", "Unknown link").into()),
     };
     elevation::shell_open(url, "")
 }
@@ -278,7 +286,7 @@ async fn install_update(app: AppHandle) -> Result<(), String> {
     let emitter = app.clone();
     let (locked, path) = blocking(move || {
         update::download(&current, &|pct| {
-            let _ = emitter.emit("progress", format!("Téléchargement · {pct} %"));
+            let _ = emitter.emit("progress", if anglais() { format!("Downloading · {pct}%") } else { format!("Téléchargement · {pct} %") });
         })
     })
     .await??;
@@ -310,6 +318,7 @@ pub fn run() {
     builder
         .invoke_handler(tauri::generate_handler![
             app_info,
+            set_language,
             open_link,
             check_update,
             install_update,

@@ -1,6 +1,7 @@
 //! Ranger un dossier en vrac (Téléchargements, Bureau) : chaque fichier va dans un sous-dossier
 //! selon son type. Chaque rangement est noté pour pouvoir l'annuler.
 
+use crate::langue::{tr, anglais};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -18,6 +19,18 @@ const CATEGORIES: &[(&str, &[&str])] = &[
     ("Installeurs", &["exe", "msi", "msix", "appx", "iso", "dmg"]),
     ("Code", &["js", "ts", "py", "html", "css", "json", "rs", "php", "java", "c", "cpp", "h", "sh", "bat", "ps1", "xml", "yml", "yaml"]),
 ];
+
+/// Nom anglais des dossiers qui changent de nom (les autres s'écrivent pareil dans les deux langues).
+const EN: &[(&str, &str)] = &[("Vidéos", "Videos"), ("Installeurs", "Installers")];
+
+fn english(fr: &'static str) -> &'static str {
+    EN.iter().find(|(f, _)| *f == fr).map_or(fr, |(_, e)| *e)
+}
+
+/// Le nom du dossier créé, dans la langue choisie.
+fn folder(fr: &'static str) -> &'static str {
+    if anglais() { english(fr) } else { fr }
+}
 
 /// Fichiers jamais déplacés : raccourcis du Bureau et téléchargements en cours.
 const KEEP: &[&str] = &["lnk", "url", "ini", "crdownload", "part", "partial", "download", "tmp"];
@@ -47,7 +60,7 @@ fn category(path: &Path) -> Option<&'static str> {
     if KEEP.contains(&ext.as_str()) {
         return None;
     }
-    CATEGORIES.iter().find(|(_, exts)| exts.contains(&ext.as_str())).map(|(name, _)| *name)
+    CATEGORIES.iter().find(|(_, exts)| exts.contains(&ext.as_str())).map(|(name, _)| folder(*name))
 }
 
 /// Les fichiers à ranger, directement dans `dir` (les sous-dossiers ne sont pas touchés).
@@ -79,7 +92,8 @@ pub fn plan(dir: &Path) -> Vec<PlanGroup> {
     CATEGORIES
         .iter()
         .filter_map(|(cat, _)| {
-            let mine: Vec<_> = files.iter().filter(|(_, c, _)| c == cat).collect();
+            let cat = folder(*cat);
+            let mine: Vec<_> = files.iter().filter(|(_, c, _)| *c == cat).collect();
             if mine.is_empty() {
                 return None;
             }
@@ -147,7 +161,7 @@ fn legit(m: &Move, dirs: &[PathBuf]) -> bool {
     let (Some(home), Some(cat_dir), Some(name)) = (m.from.parent(), m.to.parent(), m.from.file_name()) else {
         return false;
     };
-    let is_category = cat_dir.file_name().and_then(|n| n.to_str()).is_some_and(|n| CATEGORIES.iter().any(|(c, _)| *c == n));
+    let is_category = cat_dir.file_name().and_then(|n| n.to_str()).is_some_and(|n| CATEGORIES.iter().any(|(c, _)| *c == n || english(*c) == n));
     let plain_name = std::path::Path::new(name).components().count() == 1;
     is_category && plain_name && cat_dir.parent() == Some(home) && dirs.iter().any(|d| d.as_path() == home)
 }
@@ -157,13 +171,13 @@ fn legit(m: &Move, dirs: &[PathBuf]) -> bool {
 pub fn undo(undo_log: &Path, dirs: &[PathBuf]) -> OrganizeReport {
     let mut report = OrganizeReport::default();
     let Ok(data) = fs::read(undo_log) else {
-        report.errors.push("Aucun rangement à annuler".into());
+        report.errors.push(tr("Aucun rangement à annuler", "No tidy-up to undo").into());
         return report;
     };
     let moves: Vec<Move> = serde_json::from_slice::<Vec<Move>>(&data).unwrap_or_default().into_iter().filter(|m| legit(m, dirs)).collect();
     for m in moves.iter().rev() {
         if m.from.exists() {
-            report.errors.push(format!("{} existe déjà, fichier laissé dans le dossier rangé", m.from.display()));
+            report.errors.push(if anglais() { format!("{} already exists, file left in the tidy folder", m.from.display()) } else { format!("{} existe déjà, fichier laissé dans le dossier rangé", m.from.display()) });
             continue;
         }
         match fs::rename(&m.to, &m.from) {

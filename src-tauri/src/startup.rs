@@ -131,11 +131,11 @@ mod imp {
     }
 
     pub fn set(id: &str, enabled: bool) -> Result<(), String> {
-        let (src_id, key) = id.split_once('|').ok_or("Appli inconnue")?;
-        let src = SOURCES.iter().find(|s| s.id == src_id).ok_or("Appli inconnue")?;
+        let (src_id, key) = id.split_once('|').ok_or(crate::langue::tr("Appli inconnue", "Unknown app"))?;
+        let src = SOURCES.iter().find(|s| s.id == src_id).ok_or(crate::langue::tr("Appli inconnue", "Unknown app"))?;
         // On vérifie que l'entrée existe vraiment avant d'écrire quoi que ce soit.
         if !entries(src).iter().any(|(k, _, _)| k == key) {
-            return Err("Cette appli n'est plus dans la liste de démarrage".into());
+            return Err(crate::langue::tr("Cette appli n'est plus dans la liste de démarrage", "This app is no longer in the startup list").into());
         }
 
         let mut bytes = vec![0u8; 12];
@@ -151,7 +151,7 @@ mod imp {
             bytes[4..].copy_from_slice(&filetime.to_le_bytes());
         }
 
-        let admin = "Droits administrateur nécessaires pour cette appli".to_string();
+        let admin = crate::langue::tr("Droits administrateur nécessaires pour cette appli", "Admin rights are required for this app").to_string();
         let (approved, _) = RegKey::predef(src.hive)
             .create_subkey_with_flags(format!(r"{APPROVED}\{}", src.approved), KEY_SET_VALUE)
             .map_err(|_| admin.clone())?;
@@ -166,7 +166,7 @@ mod imp {
         vec![]
     }
     pub fn set(_id: &str, _enabled: bool) -> Result<(), String> {
-        Err("Disponible uniquement sur Windows".into())
+        Err(crate::langue::tr("Disponible uniquement sur Windows", "Only available on Windows").into())
     }
 }
 
