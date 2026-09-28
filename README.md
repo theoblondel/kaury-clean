@@ -23,7 +23,7 @@
 
 <p align="center"><sub>Like Kaury Clean? A ⭐ at the top right helps other people find it.</sub></p>
 
-> The app interface is in French.
+> The app speaks English and French: it follows your Windows language, and you can switch in **About**.
 
 ---
 
@@ -120,6 +120,7 @@ src/
 src-tauri/src/
   junk.rs             junk files: scan and cleanup
   garde.rs            safety checks: real paths, admin rules, full tool paths
+  langue.rs           French or English, chosen by the interface
   files.rs            large files, duplicates, old downloads, Recycle Bin
   space.rs            disk map (read-only)
   organize.rs         tidying folders by type

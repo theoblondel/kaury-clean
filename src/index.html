@@ -12,18 +12,18 @@
 <body>
   <div class="app">
     <nav aria-label="Sections">
-      <button class="brand" data-section="about" title="À propos de Kaury Clean"><img src="logo.svg" alt="" width="28" height="28"><span>kaury<em>.</em>clean</span></button>
+      <button class="brand" data-section="about" title="À propos de Kaury Clean" data-en-title="About Kaury Clean"><img src="logo.svg" alt="" width="28" height="28"><span>kaury<em>.</em>clean</span></button>
       <div class="sections">
-        <button data-section="home" aria-current="true"><span class="tile t-home" data-icon="sparkle"></span>Entretien intelligent</button>
-        <button data-section="clean"><span class="tile t-clean" data-icon="broom"></span>Nettoyage<span class="size" data-size="clean"></span></button>
-        <button data-section="perf"><span class="tile t-perf" data-icon="bolt"></span>Performances</button>
+        <button data-section="home" aria-current="true" data-en="Smart care"><span class="tile t-home" data-icon="sparkle"></span>Entretien intelligent</button>
+        <button data-section="clean" data-en="Cleanup"><span class="tile t-clean" data-icon="broom"></span>Nettoyage<span class="size" data-size="clean"></span></button>
+        <button data-section="perf" data-en="Performance"><span class="tile t-perf" data-icon="bolt"></span>Performances</button>
         <button data-section="apps"><span class="tile t-apps" data-icon="grid"></span>Applications</button>
-        <button data-section="files"><span class="tile t-files" data-icon="folder"></span>Mes fichiers</button>
-        <button data-section="repair"><span class="tile t-repair" data-icon="wrench"></span>Réparation</button>
+        <button data-section="files" data-en="My files"><span class="tile t-files" data-icon="folder"></span>Mes fichiers</button>
+        <button data-section="repair" data-en="Repair"><span class="tile t-repair" data-icon="wrench"></span>Réparation</button>
       </div>
       <div class="nav-foot">
         <div class="disk" id="disk" hidden>
-          <div class="row"><span id="diskName">Disque local</span><span id="diskFree"></span></div>
+          <div class="row"><span id="diskName" data-en="Local drive">Disque local</span><span id="diskFree"></span></div>
           <div class="bar"><i id="diskBar"></i></div>
         </div>
         <button class="about-btn" data-section="about"><span class="tile t-about" data-icon="logo"></span><span>Kaury Clean<small id="version"></small></span><span class="badge" id="updateDot" hidden></span></button>
@@ -42,12 +42,12 @@
             <div class="floor"></div>
           </div>
           <div class="hero-text">
-            <h1>Entretien intelligent</h1>
-            <p class="lead">L'entretien rapide qui s'occupe de l'essentiel.</p>
+            <h1 data-en="Smart care">Entretien intelligent</h1>
+            <p class="lead" data-en="The quick checkup that takes care of the essentials.">L'entretien rapide qui s'occupe de l'essentiel.</p>
             <ul class="features">
-              <li><span class="tile sm t-clean" data-icon="broom"></span>Nettoyage des fichiers inutiles</li>
-              <li><span class="tile sm t-perf" data-icon="bolt"></span>Performances et démarrage</li>
-              <li><span class="tile sm t-files" data-icon="folder"></span>Applis et fichiers oubliés</li>
+              <li data-en="Junk file cleanup"><span class="tile sm t-clean" data-icon="broom"></span>Nettoyage des fichiers inutiles</li>
+              <li data-en="Performance and startup"><span class="tile sm t-perf" data-icon="bolt"></span>Performances et démarrage</li>
+              <li data-en="Apps and forgotten files"><span class="tile sm t-files" data-icon="folder"></span>Applis et fichiers oubliés</li>
             </ul>
             <p class="stats" id="stats" hidden></p>
           </div>
@@ -55,7 +55,7 @@
 
         <div class="care-scan" id="careScan" hidden>
           <div class="orb"><canvas id="orb" width="440" height="440"></canvas><div class="val" id="orbVal"></div></div>
-          <h1 id="scanTitle">Analyse en cours</h1>
+          <h1 id="scanTitle" data-en="Scanning">Analyse en cours</h1>
           <p class="progress-line" id="careProgress"></p>
           <ul class="steps" id="careSteps" hidden></ul>
         </div>
@@ -67,36 +67,40 @@
         </div>
 
         <div class="care-actions">
-          <button class="link back" id="careReset" hidden>Recommencer</button>
+          <button class="link back" id="careReset" hidden data-en="Start over">Recommencer</button>
           <button class="round" id="careBtn">Analyser</button>
         </div>
       </section>
 
       <section class="view" id="v-system" hidden data-group="system"
+        data-en-heading="System files" data-en-desc="Temp files, error reports and caches that Windows and your software rebuild on their own. Temp files younger than 24 h are kept."
         data-title="Fichiers système" data-desc="Fichiers temporaires, rapports d'erreur et caches que Windows et tes logiciels recréent tout seuls. Les fichiers temporaires de moins de 24 h sont gardés."></section>
       <section class="view" id="v-apps" hidden data-group="apps"
+        data-en-heading="Applications" data-en-desc="Your apps' caches: Spotify music, Discord images, Adobe media cache… Everything rebuilds when needed, none of your work is touched."
         data-title="Applications" data-desc="Les caches de tes applis : musique Spotify, images Discord, cache média Adobe… Tout se recrée au besoin, rien de ton travail n'est touché."></section>
       <section class="view" id="v-browsers" hidden data-group="browsers"
+        data-en-heading="Browsers" data-en-desc="Only the cache. Your passwords, bookmarks, history and sessions are not touched."
         data-title="Navigateurs" data-desc="Seulement le cache. Tes mots de passe, favoris, historique et sessions ne sont pas touchés."></section>
       <section class="view" id="v-trash" hidden data-group="trash"
+        data-en-heading="Recycle Bin" data-en-desc="Files already deleted that still take up space. Once the Recycle Bin is emptied, they don't come back."
         data-title="Corbeille" data-desc="Les fichiers déjà supprimés qui prennent encore de la place. Une fois la corbeille vidée, ils ne reviennent pas."></section>
 
       <section class="view" id="v-space" hidden>
         <div class="head">
-          <div><h2>Ce qui prend de la place</h2><p>Où partent les gigas de ton disque, dossier par dossier. Rien ne s'efface d'ici : c'est une carte, pour savoir quoi trier toi-même.</p></div>
-          <div class="tools"><button class="cta small" id="spaceBtn">Analyser</button></div>
+          <div><h2 data-en="What takes up space">Ce qui prend de la place</h2><p data-en="Where your drive's gigabytes go, folder by folder. Nothing is deleted from here: it's a map, so you know what to sort yourself.">Où partent les gigas de ton disque, dossier par dossier. Rien ne s'efface d'ici : c'est une carte, pour savoir quoi trier toi-même.</p></div>
+          <div class="tools"><button class="cta small" id="spaceBtn" data-en="Scan">Analyser</button></div>
         </div>
         <div id="spaceBody"></div>
       </section>
 
       <section class="view" id="v-large" hidden>
         <div class="head">
-          <div><h2>Gros fichiers</h2><p>Les fichiers les plus lourds de ton Bureau, Téléchargements, Documents, Vidéos, Images et Musique. Rien n'est coché d'avance : c'est toi qui décides, et tout part à la corbeille.</p></div>
+          <div><h2 data-en="Large files">Gros fichiers</h2><p data-en="The heaviest files in your Desktop, Downloads, Documents, Videos, Pictures and Music. Nothing is checked in advance: you decide, and everything goes to the Recycle Bin.">Les fichiers les plus lourds de ton Bureau, Téléchargements, Documents, Vidéos, Images et Musique. Rien n'est coché d'avance : c'est toi qui décides, et tout part à la corbeille.</p></div>
           <div class="tools">
-            <label class="select">À partir de
-              <select id="largeMin"><option value="100">100 Mo</option><option value="500" selected>500 Mo</option><option value="1024">1 Go</option></select>
+            <label class="select" data-en="From">À partir de
+              <select id="largeMin"><option value="100" data-en="100 MB">100 Mo</option><option value="500" selected data-en="500 MB">500 Mo</option><option value="1024" data-en="1 GB">1 Go</option></select>
             </label>
-            <button class="cta small" id="largeBtn">Rechercher</button>
+            <button class="cta small" id="largeBtn" data-en="Search">Rechercher</button>
           </div>
         </div>
         <div id="largeList"></div>
@@ -104,20 +108,20 @@
 
       <section class="view" id="v-dupes" hidden>
         <div class="head">
-          <div><h2>Doublons</h2><p>Les fichiers identiques trouvés à plusieurs endroits de tes dossiers perso. La copie la plus récente est gardée, les autres sont cochées pour la corbeille.</p></div>
-          <div class="tools"><button class="cta small" id="dupesBtn">Rechercher</button></div>
+          <div><h2 data-en="Duplicates">Doublons</h2><p data-en="Identical files found in several places in your personal folders. The most recent copy is kept, the others are checked for the Recycle Bin.">Les fichiers identiques trouvés à plusieurs endroits de tes dossiers perso. La copie la plus récente est gardée, les autres sont cochées pour la corbeille.</p></div>
+          <div class="tools"><button class="cta small" id="dupesBtn" data-en="Search">Rechercher</button></div>
         </div>
         <div id="dupesList"></div>
       </section>
 
       <section class="view" id="v-olddl" hidden>
         <div class="head">
-          <div><h2>Vieux téléchargements</h2><p>Les fichiers de ton dossier Téléchargements que tu n'as pas ouverts ni modifiés depuis longtemps : installeurs déjà utilisés, archives, PDF oubliés. Rien n'est coché d'avance, et tout part à la corbeille.</p></div>
+          <div><h2 data-en="Old downloads">Vieux téléchargements</h2><p data-en="Files in your Downloads folder that you haven't opened or changed in a long time: installers already used, archives, forgotten PDFs. Nothing is checked in advance, and everything goes to the Recycle Bin.">Les fichiers de ton dossier Téléchargements que tu n'as pas ouverts ni modifiés depuis longtemps : installeurs déjà utilisés, archives, PDF oubliés. Rien n'est coché d'avance, et tout part à la corbeille.</p></div>
           <div class="tools">
-            <label class="select">Plus vieux que
-              <select id="olddlMin"><option value="90">3 mois</option><option value="180" selected>6 mois</option><option value="365">1 an</option></select>
+            <label class="select" data-en="Older than">Plus vieux que
+              <select id="olddlMin"><option value="90" data-en="3 months">3 mois</option><option value="180" selected data-en="6 months">6 mois</option><option value="365" data-en="1 year">1 an</option></select>
             </label>
-            <button class="cta small" id="olddlBtn">Rechercher</button>
+            <button class="cta small" id="olddlBtn" data-en="Search">Rechercher</button>
           </div>
         </div>
         <div id="olddlList"></div>
@@ -125,10 +129,10 @@
 
       <section class="view" id="v-organize" hidden>
         <div class="head">
-          <div><h2>Ranger mes fichiers</h2><p>Chaque fichier va dans un sous-dossier selon son type : Images, Documents, Design, Installeurs… Les dossiers existants et les raccourcis ne bougent pas, aucun fichier n'est écrasé, et tu peux tout annuler.</p></div>
-          <div class="seg" role="radiogroup" aria-label="Dossier à ranger">
-            <button role="radio" aria-checked="true" data-folder="downloads">Téléchargements</button>
-            <button role="radio" aria-checked="false" data-folder="desktop">Bureau</button>
+          <div><h2 data-en="Tidy my files">Ranger mes fichiers</h2><p data-en="Each file goes into a subfolder by type: Images, Documents, Design, Installers… Existing folders and shortcuts don't move, no file is overwritten, and you can undo everything.">Chaque fichier va dans un sous-dossier selon son type : Images, Documents, Design, Installeurs… Les dossiers existants et les raccourcis ne bougent pas, aucun fichier n'est écrasé, et tu peux tout annuler.</p></div>
+          <div class="seg" role="radiogroup" aria-label="Dossier à ranger" data-en-aria-label="Folder to tidy">
+            <button role="radio" aria-checked="true" data-folder="downloads" data-en="Downloads">Téléchargements</button>
+            <button role="radio" aria-checked="false" data-folder="desktop" data-en="Desktop">Bureau</button>
           </div>
         </div>
         <div id="organizeBody"></div>
@@ -136,26 +140,26 @@
 
       <section class="view" id="v-memory" hidden>
         <div class="head">
-          <div><h2>Mémoire vive</h2><p>Quand le PC rame, c'est souvent qu'une appli prend trop de mémoire. Ferme celles dont tu n'as pas besoin : Windows récupère la mémoire tout de suite. Pense à enregistrer ton travail avant.</p></div>
-          <div class="tools"><button class="cta ghost" id="memoryBtn">Actualiser</button></div>
+          <div><h2 data-en="Memory">Mémoire vive</h2><p data-en="When the PC is slow, it's often because an app is using too much memory. Close the ones you don't need: Windows gets the memory back right away. Remember to save your work first.">Quand le PC rame, c'est souvent qu'une appli prend trop de mémoire. Ferme celles dont tu n'as pas besoin : Windows récupère la mémoire tout de suite. Pense à enregistrer ton travail avant.</p></div>
+          <div class="tools"><button class="cta ghost" id="memoryBtn" data-en="Refresh">Actualiser</button></div>
         </div>
         <div id="memoryBody"></div>
       </section>
 
       <section class="view" id="v-startup" hidden>
         <div class="head">
-          <div><h2>Démarrage</h2><p>Les applis qui se lancent avec Windows. Désactive celles dont tu n'as pas besoin dès l'allumage : ton PC démarre plus vite, et tu peux les réactiver quand tu veux.</p></div>
+          <div><h2 data-en="Startup">Démarrage</h2><p data-en="The apps that launch with Windows. Turn off the ones you don't need right at power-on: your PC starts faster, and you can turn them back on anytime.">Les applis qui se lancent avec Windows. Désactive celles dont tu n'as pas besoin dès l'allumage : ton PC démarre plus vite, et tu peux les réactiver quand tu veux.</p></div>
         </div>
         <div id="startupList"></div>
       </section>
 
       <section class="view" id="v-uninstall" hidden>
         <div class="head">
-          <div><h2>Désinstaller</h2><p>Toutes les applis installées, avec la place qu'elles prennent. Kaury Clean lance le désinstalleur officiel de chaque appli, comme les Paramètres de Windows.</p></div>
+          <div><h2 data-en="Uninstall">Désinstaller</h2><p data-en="All installed apps, with the space they take. Kaury Clean launches each app's official uninstaller, just like Windows Settings.">Toutes les applis installées, avec la place qu'elles prennent. Kaury Clean lance le désinstalleur officiel de chaque appli, comme les Paramètres de Windows.</p></div>
           <div class="tools">
-            <input class="search" id="uninstallSearch" type="search" placeholder="Rechercher une appli" aria-label="Rechercher une appli">
-            <label class="select">Trier par
-              <select id="uninstallSort"><option value="bytes">Taille</option><option value="name">Nom</option><option value="installed">Date</option></select>
+            <input class="search" id="uninstallSearch" type="search" placeholder="Rechercher une appli" aria-label="Rechercher une appli" data-en-placeholder="Search an app" data-en-aria-label="Search an app">
+            <label class="select" data-en="Sort by">Trier par
+              <select id="uninstallSort"><option value="bytes" data-en="Size">Taille</option><option value="name" data-en="Name">Nom</option><option value="installed" data-en="Date">Date</option></select>
             </label>
           </div>
         </div>
@@ -164,7 +168,7 @@
 
       <section class="view" id="v-maintenance" hidden>
         <div class="head">
-          <div><h2>Maintenance</h2><p>Les outils de réparation intégrés à Windows, lancés pour toi avec les bonnes options. Une tâche à la fois.</p></div>
+          <div><h2>Maintenance</h2><p data-en="Windows' built-in repair tools, launched for you with the right options. One task at a time.">Les outils de réparation intégrés à Windows, lancés pour toi avec les bonnes options. Une tâche à la fois.</p></div>
         </div>
         <div id="maintenanceBody"></div>
       </section>
@@ -178,8 +182,8 @@
           <h2 id="updateModalTitle"></h2>
           <p id="updateModalText"></p>
           <div class="actions">
-            <button class="cta ghost" id="updateLater">Plus tard</button>
-            <button class="cta" id="updateNow">Mettre à jour maintenant</button>
+            <button class="cta ghost" id="updateLater" data-en="Later">Plus tard</button>
+            <button class="cta" id="updateNow" data-en="Update now">Mettre à jour maintenant</button>
           </div>
         </div>
       </div>

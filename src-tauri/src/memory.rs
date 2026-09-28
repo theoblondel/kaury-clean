@@ -2,6 +2,7 @@
 //! ne font que la vider pour qu'elle se remplisse aussitôt. Ce qui accélère vraiment un PC qui rame,
 //! c'est de fermer les applis qui en prennent trop. C'est ce que fait ce module.
 
+use crate::langue::tr;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::process::Command;
@@ -91,7 +92,7 @@ fn still_running(exe: &str) -> bool {
 /// d'enregistrer) ; avec `force`, immédiatement. Renvoie `true` si l'appli est bien fermée.
 pub fn close(exe: &str, force: bool) -> Result<bool, String> {
     if protected(exe) || !still_running(exe) {
-        return Err("Cette appli ne peut pas être fermée d'ici".into());
+        return Err(tr("Cette appli ne peut pas être fermée d'ici", "This app can't be closed from here").into());
     }
     let mut cmd = Command::new(crate::garde::windows_program("taskkill.exe"));
     if force {

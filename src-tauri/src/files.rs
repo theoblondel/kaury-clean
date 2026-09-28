@@ -1,6 +1,7 @@
 //! Gros fichiers et doublons dans les dossiers perso (Bureau, Téléchargements, Documents, ...).
 //! Ici on ne supprime jamais définitivement : tout part à la corbeille.
 
+use crate::langue::{tr, anglais};
 use std::collections::{BinaryHeap, HashMap};
 use std::cmp::Reverse;
 use std::fs::File;
@@ -48,12 +49,12 @@ pub fn cancelled() -> bool {
 fn display_name(root: &Path) -> String {
     let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     match name.as_str() {
-        "Desktop" => "Bureau".into(),
-        "Downloads" => "Téléchargements".into(),
+        "Desktop" => tr("Bureau", "Desktop").into(),
+        "Downloads" => tr("Téléchargements", "Downloads").into(),
         "Documents" => "Documents".into(),
-        "Videos" => "Vidéos".into(),
-        "Pictures" => "Images".into(),
-        "Music" => "Musique".into(),
+        "Videos" => tr("Vidéos", "Videos").into(),
+        "Pictures" => tr("Images", "Pictures").into(),
+        "Music" => tr("Musique", "Music").into(),
         _ => name,
     }
 }
@@ -208,7 +209,8 @@ pub fn duplicates(roots: &[PathBuf], min_bytes: u64, progress: &dyn Fn(&str)) ->
     let tick = || {
         done.set(done.get() + 1);
         if done.get().is_multiple_of(20) {
-            progress(&format!("{} fichiers comparés sur {total}", done.get().min(total)));
+            let n = done.get().min(total);
+            progress(&if anglais() { format!("{n} of {total} files compared") } else { format!("{n} fichiers comparés sur {total}") });
         }
     };
     let mut groups: Vec<DuplicateGroup> = candidates
@@ -232,7 +234,7 @@ pub fn move_to_trash(roots: &[PathBuf], paths: &[String]) -> TrashReport {
     for p in paths {
         let path = Path::new(p);
         let Some(real) = inside_roots(roots, path) else {
-            report.errors.push(format!("{p} : fichier introuvable ou hors des dossiers analysés"));
+            report.errors.push(if anglais() { format!("{p}: file not found or outside the scanned folders") } else { format!("{p} : fichier introuvable ou hors des dossiers analysés") });
             continue;
         };
         let size = real.metadata().map(|m| m.len()).unwrap_or(0);
@@ -256,7 +258,7 @@ fn inside_roots(roots: &[PathBuf], path: &Path) -> Option<PathBuf> {
 
 /// Ouvre l'Explorateur sur le dossier du fichier, avec le fichier sélectionné.
 pub fn reveal(roots: &[PathBuf], path: &str) -> Result<(), String> {
-    let path = garde::plain(&inside_roots(roots, Path::new(path)).ok_or("Fichier introuvable")?);
+    let path = garde::plain(&inside_roots(roots, Path::new(path)).ok_or(tr("Fichier introuvable", "File not found"))?);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -269,7 +271,7 @@ pub fn reveal(roots: &[PathBuf], path: &str) -> Result<(), String> {
     #[cfg(not(windows))]
     {
         let _ = path;
-        Err("Disponible uniquement sur Windows".into())
+        Err(tr("Disponible uniquement sur Windows", "Only available on Windows").into())
     }
 }
 

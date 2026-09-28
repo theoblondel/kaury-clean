@@ -116,19 +116,18 @@ mod imp {
         use windows_sys::Win32::UI::Shell::ShellExecuteW;
         use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-        let (src, sub) = id.split_once('|').ok_or("Appli inconnue")?;
+        let (src, sub) = id.split_once('|').ok_or(crate::langue::tr("Appli inconnue", "Unknown app"))?;
         // Les applis « de ton compte » sont inscrites à un endroit que n'importe quel programme peut
         // modifier. Lancer leur désinstalleur en administrateur offrirait ces droits à un imposteur,
         // sans même la fenêtre de confirmation de Windows.
         if src == "hkcu" && crate::elevation::is_elevated() {
-            return Err(concat!(
-                "Par sécurité, cette appli (installée pour ton compte seulement) ne se désinstalle pas ",
-                "depuis Kaury Clean en mode administrateur. Rouvre Kaury Clean normalement, ",
-                "ou passe par Paramètres › Applications."
+            return Err(crate::langue::tr(
+                "Par sécurité, cette appli (installée pour ton compte seulement) ne se désinstalle pas depuis Kaury Clean en mode administrateur. Rouvre Kaury Clean normalement, ou passe par Paramètres › Applications.",
+                "For safety, this app (installed for your account only) can't be uninstalled from Kaury Clean in administrator mode. Open Kaury Clean normally, or go through Settings › Apps.",
             )
             .into());
         }
-        let key = open(src, sub).filter(visible).ok_or("Cette appli n'est plus installée")?;
+        let key = open(src, sub).filter(visible).ok_or(crate::langue::tr("Cette appli n'est plus installée", "This app is no longer installed"))?;
         // La commande vient du registre, jamais de l'interface.
         let (exe, args) = split_command(&text(&key, "UninstallString"));
         let exe = if exe.eq_ignore_ascii_case("msiexec.exe") || exe.eq_ignore_ascii_case("msiexec") {
@@ -147,7 +146,7 @@ mod imp {
         if result as isize > 32 {
             Ok(())
         } else {
-            Err("Le désinstalleur n'a pas pu démarrer".into())
+            Err(crate::langue::tr("Le désinstalleur n'a pas pu démarrer", "The uninstaller couldn't start").into())
         }
     }
 }
@@ -159,7 +158,7 @@ mod imp {
         vec![]
     }
     pub fn uninstall(_id: &str) -> Result<(), String> {
-        Err("Disponible uniquement sur Windows".into())
+        Err(crate::langue::tr("Disponible uniquement sur Windows", "Only available on Windows").into())
     }
 }
 

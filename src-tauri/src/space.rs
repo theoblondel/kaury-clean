@@ -1,6 +1,7 @@
 //! Ce qui prend de la place sur le disque de Windows. Lecture seule : rien ici n'efface, ne déplace
 //! ni ne modifie quoi que ce soit. C'est une carte, pour savoir où trier soi-même.
 
+use crate::langue::tr;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -78,29 +79,29 @@ fn children(dir: &Path) -> Vec<PathBuf> {
 pub fn note_for(name: &str, kind: &str) -> String {
     let n = name.to_lowercase();
     let known: &[(&[&str], &str)] = &[
-        (&["packages"], "Applis du Microsoft Store et leurs données (WhatsApp, Spotify, Claude…)"),
-        (&["docker"], "Disques de Docker : à gérer depuis Docker Desktop"),
-        (&[".minecraft", "modrinthapp", "prismlauncher", "curseforge"], "Mondes, modpacks et versions de Minecraft"),
-        (&["steam", "steamlibrary"], "Tes jeux Steam : à désinstaller depuis Steam"),
-        (&["epic games"], "Tes jeux Epic : à désinstaller depuis le launcher Epic"),
-        (&["google"], "Chrome : profils, extensions et données des sites. Le cache se vide dans Nettoyage"),
-        (&["microsoft"], "Données des applis Microsoft (Edge, Office, Teams…)"),
-        (&["claude"], "Claude : l'appli et sa machine virtuelle"),
-        (&["nvidia corporation", "nvidia"], "Pilotes et appli NVIDIA. Les installeurs se vident dans Nettoyage"),
-        (&["adobe"], "Applis Adobe et leurs caches"),
-        (&["uv"], "Python (uv). Son cache se vide dans Nettoyage › Applications"),
-        (&["npm-cache"], "Cache npm. Il se vide dans Nettoyage › Applications"),
-        (&["temp"], "Fichiers temporaires. Ils se vident dans Nettoyage"),
-        (&["onedrive"], "Tes fichiers synchronisés avec OneDrive"),
-        (&["windowsapps"], "Applis du Microsoft Store (lisible seulement en administrateur)"),
+        (&["packages"], tr("Applis du Microsoft Store et leurs données (WhatsApp, Spotify, Claude…)", "Microsoft Store apps and their data (WhatsApp, Spotify, Claude…)")),
+        (&["docker"], tr("Disques de Docker : à gérer depuis Docker Desktop", "Docker disks: manage them from Docker Desktop")),
+        (&[".minecraft", "modrinthapp", "prismlauncher", "curseforge"], tr("Mondes, modpacks et versions de Minecraft", "Minecraft worlds, modpacks and versions")),
+        (&["steam", "steamlibrary"], tr("Tes jeux Steam : à désinstaller depuis Steam", "Your Steam games: uninstall them from Steam")),
+        (&["epic games"], tr("Tes jeux Epic : à désinstaller depuis le launcher Epic", "Your Epic games: uninstall them from the Epic launcher")),
+        (&["google"], tr("Chrome : profils, extensions et données des sites. Le cache se vide dans Nettoyage", "Chrome: profiles, extensions and site data. The cache is cleared in Cleanup")),
+        (&["microsoft"], tr("Données des applis Microsoft (Edge, Office, Teams…)", "Microsoft app data (Edge, Office, Teams…)")),
+        (&["claude"], tr("Claude : l'appli et sa machine virtuelle", "Claude: the app and its virtual machine")),
+        (&["nvidia corporation", "nvidia"], tr("Pilotes et appli NVIDIA. Les installeurs se vident dans Nettoyage", "NVIDIA drivers and app. The installers are cleared in Cleanup")),
+        (&["adobe"], tr("Applis Adobe et leurs caches", "Adobe apps and their caches")),
+        (&["uv"], tr("Python (uv). Son cache se vide dans Nettoyage › Applications", "Python (uv). Its cache is cleared in Cleanup › Applications")),
+        (&["npm-cache"], tr("Cache npm. Il se vide dans Nettoyage › Applications", "npm cache. It's cleared in Cleanup › Applications")),
+        (&["temp"], tr("Fichiers temporaires. Ils se vident dans Nettoyage", "Temporary files. They're cleared in Cleanup")),
+        (&["onedrive"], tr("Tes fichiers synchronisés avec OneDrive", "Your files synced with OneDrive")),
+        (&["windowsapps"], tr("Applis du Microsoft Store (lisible seulement en administrateur)", "Microsoft Store apps (readable only as administrator)")),
     ];
     if let Some((_, note)) = known.iter().find(|(names, _)| names.contains(&n.as_str())) {
         return (*note).into();
     }
     match kind {
-        "files" => "Tes fichiers : « Gros fichiers » et « Doublons » t'aident à trier".into(),
-        "apps" => "Données d'une appli : réglages, caches, parfois ton travail".into(),
-        "programs" => "Un programme installé : à désinstaller depuis Applications s'il ne sert plus".into(),
+        "files" => tr("Tes fichiers : « Gros fichiers » et « Doublons » t'aident à trier", "Your files: \"Large files\" and \"Duplicates\" help you sort them").into(),
+        "apps" => tr("Données d'une appli : réglages, caches, parfois ton travail", "An app's data: settings, caches, sometimes your work").into(),
+        "programs" => tr("Un programme installé : à désinstaller depuis Applications s'il ne sert plus", "An installed program: uninstall it from Applications if you no longer use it").into(),
         _ => String::new(),
     }
 }
@@ -152,11 +153,11 @@ pub fn scan(total: u64, used: u64, progress: &dyn Fn(&str)) -> SpaceReport {
     let sum = |k: &str| entries.iter().filter(|e| e.kind == k).map(|e| e.bytes).sum::<u64>();
     let (files, apps, programs) = (sum("files"), sum("apps"), sum("programs"));
     let groups = vec![
-        SpaceGroup { kind: "files", label: "Tes fichiers", bytes: files },
-        SpaceGroup { kind: "apps", label: "Données d'applis", bytes: apps },
-        SpaceGroup { kind: "programs", label: "Programmes", bytes: programs },
+        SpaceGroup { kind: "files", label: tr("Tes fichiers", "Your files"), bytes: files },
+        SpaceGroup { kind: "apps", label: tr("Données d'applis", "App data"), bytes: apps },
+        SpaceGroup { kind: "programs", label: tr("Programmes", "Programs"), bytes: programs },
         // Le reste de l'espace utilisé : Windows, fichier d'échange, mise en veille prolongée, points de restauration.
-        SpaceGroup { kind: "system", label: "Windows et le reste", bytes: used.saturating_sub(files + apps + programs) },
+        SpaceGroup { kind: "system", label: tr("Windows et le reste", "Windows and the rest"), bytes: used.saturating_sub(files + apps + programs) },
     ];
 
     entries.sort_by(|a, b| b.bytes.cmp(&a.bytes));
@@ -172,7 +173,7 @@ pub fn open(path: &str) -> Result<(), String> {
     let wanted = PathBuf::from(path);
     let allowed = SHOWN.lock().map(|s| s.contains(&wanted)).unwrap_or(false);
     if !allowed || !wanted.is_dir() {
-        return Err("Dossier introuvable".into());
+        return Err(tr("Dossier introuvable", "Folder not found").into());
     }
     #[cfg(windows)]
     {
@@ -184,7 +185,7 @@ pub fn open(path: &str) -> Result<(), String> {
             .map_err(|e| e.to_string())
     }
     #[cfg(not(windows))]
-    Err("Disponible uniquement sur Windows".into())
+    Err(tr("Disponible uniquement sur Windows", "Only available on Windows").into())
 }
 
 #[cfg(test)]

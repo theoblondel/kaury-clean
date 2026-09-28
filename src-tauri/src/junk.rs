@@ -3,6 +3,7 @@
 //! La liste des dossiers est fixée ici, côté Rust. L'interface n'envoie que des identifiants,
 //! jamais de chemins : impossible de lui faire vider un autre dossier.
 
+use crate::langue::tr;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -149,8 +150,8 @@ fn targets() -> Vec<Target> {
         Target {
             id: "user_temp",
             group: "system",
-            name: "Fichiers temporaires",
-            detail: "Dossier Temp de ton compte",
+            name: tr("Fichiers temporaires", "Temporary files"),
+            detail: tr("Dossier Temp de ton compte", "Your account's Temp folder"),
             paths: vec![env::temp_dir()],
             min_age: DAY,
             processes: &[],
@@ -159,7 +160,7 @@ fn targets() -> Vec<Target> {
         Target {
             id: "windows_temp",
             group: "system",
-            name: "Fichiers temporaires Windows",
+            name: tr("Fichiers temporaires Windows", "Windows temporary files"),
             detail: "C:\\Windows\\Temp",
             paths: join(&windir, "Temp"),
             min_age: DAY,
@@ -169,8 +170,8 @@ fn targets() -> Vec<Target> {
         Target {
             id: "windows_update",
             group: "system",
-            name: "Téléchargements Windows Update",
-            detail: "Mises à jour déjà installées",
+            name: tr("Téléchargements Windows Update", "Windows Update downloads"),
+            detail: tr("Mises à jour déjà installées", "Updates already installed"),
             paths: join(&windir, "SoftwareDistribution/Download"),
             min_age: DAY,
             processes: &[],
@@ -179,8 +180,8 @@ fn targets() -> Vec<Target> {
         Target {
             id: "delivery_optimization",
             group: "system",
-            name: "Optimisation de la distribution",
-            detail: "Mises à jour Windows partagées avec d'autres PC",
+            name: tr("Optimisation de la distribution", "Delivery Optimization"),
+            detail: tr("Mises à jour Windows partagées avec d'autres PC", "Windows updates shared with other PCs"),
             paths: join(&windir, "ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache"),
             min_age: Duration::ZERO,
             processes: &[],
@@ -189,8 +190,8 @@ fn targets() -> Vec<Target> {
         Target {
             id: "crash_reports",
             group: "system",
-            name: "Rapports d'erreur",
-            detail: "Rapports de plantage et fichiers dump",
+            name: tr("Rapports d'erreur", "Error reports"),
+            detail: tr("Rapports de plantage et fichiers dump", "Crash reports and dump files"),
             paths: crash,
             min_age: Duration::ZERO,
             processes: &[],
@@ -199,8 +200,8 @@ fn targets() -> Vec<Target> {
         Target {
             id: "shader_cache",
             group: "system",
-            name: "Cache de la carte graphique",
-            detail: "DirectX, NVIDIA et AMD",
+            name: tr("Cache de la carte graphique", "Graphics card cache"),
+            detail: tr("DirectX, NVIDIA et AMD", "DirectX, NVIDIA and AMD"),
             paths: shaders,
             min_age: Duration::ZERO,
             processes: &[],
@@ -209,8 +210,8 @@ fn targets() -> Vec<Target> {
         Target {
             id: "adobe_media_cache",
             group: "apps",
-            name: "Cache média Adobe",
-            detail: "Premiere Pro et After Effects",
+            name: tr("Cache média Adobe", "Adobe media cache"),
+            detail: tr("Premiere Pro et After Effects", "Premiere Pro and After Effects"),
             paths: adobe,
             min_age: Duration::ZERO,
             processes: &[("Adobe Premiere Pro.exe", "Premiere Pro"), ("AfterFX.exe", "After Effects"), ("Adobe Media Encoder.exe", "Media Encoder")],
@@ -220,7 +221,7 @@ fn targets() -> Vec<Target> {
             id: "spotify",
             group: "apps",
             name: "Spotify",
-            detail: "Musique mise en cache : elle se retélécharge quand tu l'écoutes",
+            detail: tr("Musique mise en cache : elle se retélécharge quand tu l'écoutes", "Cached music: it downloads again when you play it"),
             paths: spotify,
             min_age: Duration::ZERO,
             processes: &[("Spotify.exe", "Spotify")],
@@ -229,8 +230,8 @@ fn targets() -> Vec<Target> {
         Target {
             id: "nvidia_installers",
             group: "system",
-            name: "Installeurs NVIDIA",
-            detail: "Pilote et appli NVIDIA déjà installés : l'appli NVIDIA les retélécharge au besoin",
+            name: tr("Installeurs NVIDIA", "NVIDIA installers"),
+            detail: tr("Pilote et appli NVIDIA déjà installés : l'appli NVIDIA les retélécharge au besoin", "NVIDIA driver and app already installed: the NVIDIA app downloads them again if needed"),
             paths: join(&program_data, "NVIDIA Corporation/NVIDIA app/UpdateFramework/ota-artifacts"),
             min_age: DAY,
             processes: &[("NVIDIA app.exe", "NVIDIA app")],
@@ -240,7 +241,7 @@ fn targets() -> Vec<Target> {
             id: "whatsapp",
             group: "apps",
             name: "WhatsApp",
-            detail: "Cache uniquement : tes messages, tes photos et ta connexion ne bougent pas",
+            detail: tr("Cache uniquement : tes messages, tes photos et ta connexion ne bougent pas", "Cache only: your messages, photos and login stay put"),
             paths: chromium_caches(store_app(&local, "5319275A.WhatsAppDesktop_cv1g1gvanyjgm", "LocalCache/EBWebView")),
             min_age: Duration::ZERO,
             processes: &[("WhatsApp.Root.exe", "WhatsApp"), ("WhatsApp.exe", "WhatsApp")],
@@ -250,7 +251,7 @@ fn targets() -> Vec<Target> {
             id: "teams",
             group: "apps",
             name: "Microsoft Teams",
-            detail: "Cache uniquement : tes conversations et ta connexion ne bougent pas",
+            detail: tr("Cache uniquement : tes conversations et ta connexion ne bougent pas", "Cache only: your conversations and login stay put"),
             paths: chromium_caches(store_app(&local, "MSTeams_8wekyb3d8bbwe", "LocalCache/Microsoft/MSTeams/EBWebView")),
             min_age: Duration::ZERO,
             processes: &[("ms-teams.exe", "Teams")],
@@ -260,7 +261,7 @@ fn targets() -> Vec<Target> {
             id: "slack",
             group: "apps",
             name: "Slack",
-            detail: "Cache uniquement : tes messages et ta connexion ne bougent pas",
+            detail: tr("Cache uniquement : tes messages et ta connexion ne bougent pas", "Cache only: your messages and login stay put"),
             paths: electron_caches(&roaming, "Slack", &[]),
             min_age: Duration::ZERO,
             processes: &[("slack.exe", "Slack")],
@@ -270,7 +271,7 @@ fn targets() -> Vec<Target> {
             id: "epic",
             group: "apps",
             name: "Epic Games",
-            detail: "Cache des pages du magasin (tes jeux ne bougent pas)",
+            detail: tr("Cache des pages du magasin (tes jeux ne bougent pas)", "Store page cache (your games stay put)"),
             paths: prefixed(local.as_ref().map(|l| l.join("EpicGamesLauncher/Saved")), "webcache"),
             min_age: Duration::ZERO,
             processes: &[("EpicGamesLauncher.exe", "Epic Games")],
@@ -280,7 +281,7 @@ fn targets() -> Vec<Target> {
             id: "discord",
             group: "apps",
             name: "Discord",
-            detail: "Images et vidéos déjà vues",
+            detail: tr("Images et vidéos déjà vues", "Images and videos already seen"),
             paths: discord,
             min_age: Duration::ZERO,
             processes: &[("Discord.exe", "Discord")],
@@ -290,7 +291,7 @@ fn targets() -> Vec<Target> {
             id: "steam",
             group: "apps",
             name: "Steam",
-            detail: "Cache des pages du magasin (tes jeux ne bougent pas)",
+            detail: tr("Cache des pages du magasin (tes jeux ne bougent pas)", "Store page cache (your games stay put)"),
             paths: join(&local, "Steam/htmlcache"),
             min_age: Duration::ZERO,
             processes: &[("steam.exe", "Steam")],
@@ -299,8 +300,8 @@ fn targets() -> Vec<Target> {
         Target {
             id: "npm_cache",
             group: "apps",
-            name: "Cache npm",
-            detail: "Paquets JavaScript téléchargés, retéléchargés au besoin",
+            name: tr("Cache npm", "npm cache"),
+            detail: tr("Paquets JavaScript téléchargés, retéléchargés au besoin", "Downloaded JavaScript packages, downloaded again when needed"),
             paths: join(&local, "npm-cache"),
             min_age: Duration::ZERO,
             processes: &[],
@@ -309,8 +310,8 @@ fn targets() -> Vec<Target> {
         Target {
             id: "python_cache",
             group: "apps",
-            name: "Cache Python (uv, pip)",
-            detail: "Paquets Python téléchargés : tes projets gardent les leurs, le reste se retélécharge au besoin",
+            name: tr("Cache Python (uv, pip)", "Python cache (uv, pip)"),
+            detail: tr("Paquets Python téléchargés : tes projets gardent les leurs, le reste se retélécharge au besoin", "Downloaded Python packages: your projects keep theirs, the rest downloads again when needed"),
             paths: dev_python,
             min_age: Duration::ZERO,
             processes: &[("uv.exe", "uv")],
@@ -319,8 +320,8 @@ fn targets() -> Vec<Target> {
         Target {
             id: "yarn_cache",
             group: "apps",
-            name: "Cache Yarn",
-            detail: "Paquets JavaScript téléchargés, retéléchargés au besoin",
+            name: tr("Cache Yarn", "Yarn cache"),
+            detail: tr("Paquets JavaScript téléchargés, retéléchargés au besoin", "Downloaded JavaScript packages, downloaded again when needed"),
             paths: join(&local, "Yarn/Cache"),
             min_age: Duration::ZERO,
             processes: &[],
@@ -329,8 +330,8 @@ fn targets() -> Vec<Target> {
         Target {
             id: "code_editors",
             group: "apps",
-            name: "VS Code et Cursor",
-            detail: "Caches et extensions déjà installées : tes réglages et tes projets ne bougent pas",
+            name: tr("VS Code et Cursor", "VS Code and Cursor"),
+            detail: tr("Caches et extensions déjà installées : tes réglages et tes projets ne bougent pas", "Caches and extensions already installed: your settings and projects stay put"),
             paths: code_editors,
             min_age: Duration::ZERO,
             processes: &[("Code.exe", "VS Code"), ("Cursor.exe", "Cursor")],
@@ -340,7 +341,7 @@ fn targets() -> Vec<Target> {
             id: "chrome",
             group: "browsers",
             name: "Google Chrome",
-            detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas",
+            detail: tr("Cache uniquement : mots de passe, favoris et sessions ne bougent pas", "Cache only: passwords, bookmarks and sessions stay put"),
             paths: chromium_caches(local.as_ref().map(|l| l.join("Google/Chrome/User Data"))),
             min_age: Duration::ZERO,
             processes: &[("chrome.exe", "Chrome")],
@@ -350,7 +351,7 @@ fn targets() -> Vec<Target> {
             id: "edge",
             group: "browsers",
             name: "Microsoft Edge",
-            detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas",
+            detail: tr("Cache uniquement : mots de passe, favoris et sessions ne bougent pas", "Cache only: passwords, bookmarks and sessions stay put"),
             paths: chromium_caches(local.as_ref().map(|l| l.join("Microsoft/Edge/User Data"))),
             min_age: Duration::ZERO,
             processes: &[("msedge.exe", "Edge")],
@@ -360,7 +361,7 @@ fn targets() -> Vec<Target> {
             id: "brave",
             group: "browsers",
             name: "Brave",
-            detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas",
+            detail: tr("Cache uniquement : mots de passe, favoris et sessions ne bougent pas", "Cache only: passwords, bookmarks and sessions stay put"),
             paths: chromium_caches(local.as_ref().map(|l| l.join("BraveSoftware/Brave-Browser/User Data"))),
             min_age: Duration::ZERO,
             processes: &[("brave.exe", "Brave")],
@@ -369,8 +370,8 @@ fn targets() -> Vec<Target> {
         Target {
             id: "opera",
             group: "browsers",
-            name: "Opera et Opera GX",
-            detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas",
+            name: tr("Opera et Opera GX", "Opera and Opera GX"),
+            detail: tr("Cache uniquement : mots de passe, favoris et sessions ne bougent pas", "Cache only: passwords, bookmarks and sessions stay put"),
             paths: opera,
             min_age: Duration::ZERO,
             processes: &[("opera.exe", "Opera")],
@@ -380,7 +381,7 @@ fn targets() -> Vec<Target> {
             id: "vivaldi",
             group: "browsers",
             name: "Vivaldi",
-            detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas",
+            detail: tr("Cache uniquement : mots de passe, favoris et sessions ne bougent pas", "Cache only: passwords, bookmarks and sessions stay put"),
             paths: chromium_caches(local.as_ref().map(|l| l.join("Vivaldi/User Data"))),
             min_age: Duration::ZERO,
             processes: &[("vivaldi.exe", "Vivaldi")],
@@ -390,7 +391,7 @@ fn targets() -> Vec<Target> {
             id: "firefox",
             group: "browsers",
             name: "Firefox",
-            detail: "Cache uniquement : mots de passe, favoris et sessions ne bougent pas",
+            detail: tr("Cache uniquement : mots de passe, favoris et sessions ne bougent pas", "Cache only: passwords, bookmarks and sessions stay put"),
             paths: firefox_caches(&local),
             min_age: Duration::ZERO,
             processes: &[("firefox.exe", "Firefox")],
@@ -444,13 +445,13 @@ pub fn scan(progress: &dyn Fn(&str)) -> Vec<JunkItem> {
         })
         .collect();
 
-    progress("Corbeille");
+    progress(tr("Corbeille", "Recycle Bin"));
     if let Some((bytes, files)) = recycle_bin::query() {
         items.push(JunkItem {
             id: "recycle_bin".into(),
             group: "trash".into(),
-            name: "Corbeille".into(),
-            detail: "Tous les disques".into(),
+            name: tr("Corbeille", "Recycle Bin").into(),
+            detail: tr("Tous les disques", "All drives").into(),
             bytes,
             files,
             running: None,
@@ -498,7 +499,7 @@ pub fn clean(ids: &[String], progress: &dyn Fn(&str)) -> CleanReport {
         }
     }
     if ids.iter().any(|id| id == "recycle_bin") {
-        progress("Corbeille");
+        progress(tr("Corbeille", "Recycle Bin"));
         if let Some((bytes, files)) = recycle_bin::query() {
             if recycle_bin::empty() {
                 report.freed += bytes;

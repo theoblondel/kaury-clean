@@ -5,6 +5,7 @@
 //! une clé qui ne quitte jamais le PC de Kaury Studio. Un installeur sans signature valide n'est jamais
 //! lancé : un compte GitHub piraté ou un fichier échangé en route ne suffit pas à installer autre chose.
 
+use crate::langue::tr;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -93,11 +94,11 @@ pub fn check(current: &str) -> Result<UpdateInfo, String> {
         .set("Accept", "application/vnd.github+json")
         .call()
         .map_err(|e| match e {
-            ureq::Error::Status(404, _) => "Aucune version publiée pour l'instant".to_string(),
-            _ => "Impossible de joindre GitHub. Vérifie ta connexion.".to_string(),
+            ureq::Error::Status(404, _) => tr("Aucune version publiée pour l'instant", "No version published yet").to_string(),
+            _ => tr("Impossible de joindre GitHub. Vérifie ta connexion.", "Can't reach GitHub. Check your connection.").to_string(),
         })?
         .into_json()
-        .map_err(|_| "Réponse de GitHub illisible".to_string())?;
+        .map_err(|_| tr("Réponse de GitHub illisible", "Unreadable response from GitHub").to_string())?;
 
     let latest = release["tag_name"].as_str().unwrap_or("").to_string();
     let asset = release["assets"]
@@ -130,7 +131,7 @@ pub fn check(current: &str) -> Result<UpdateInfo, String> {
 }
 
 fn get(url: &str) -> Result<ureq::Response, String> {
-    agent().get(url).set("User-Agent", "KauryClean").call().map_err(|_| "Le téléchargement a échoué".to_string())
+    agent().get(url).set("User-Agent", "KauryClean").call().map_err(|_| tr("Le téléchargement a échoué", "The download failed").to_string())
 }
 
 /// Ouvre l'installeur en interdisant à tout autre programme de le modifier, de le renommer ou de le
@@ -155,7 +156,7 @@ pub fn download(current: &str, progress: &dyn Fn(u32)) -> Result<(File, PathBuf)
     // On redemande la release ici : l'adresse ne vient jamais de l'interface.
     let info = check(current)?;
     if !info.available {
-        return Err("Tu as déjà la dernière version".into());
+        return Err(tr("Tu as déjà la dernière version", "You already have the latest version").into());
     }
 
     let mut signature = vec![];
@@ -163,12 +164,12 @@ pub fn download(current: &str, progress: &dyn Fn(u32)) -> Result<(File, PathBuf)
         .into_reader()
         .take(1024)
         .read_to_end(&mut signature)
-        .map_err(|_| "Le téléchargement a été coupé".to_string())?;
+        .map_err(|_| tr("Le téléchargement a été coupé", "The download was interrupted").to_string())?;
 
     let response = get(&info.download_url)?;
     let total: u64 = response.header("Content-Length").and_then(|v| v.parse().ok()).unwrap_or(info.size);
     if total > MAX_INSTALLER {
-        return Err("Cette mise à jour est anormalement lourde : elle n'a pas été téléchargée".into());
+        return Err(tr("Cette mise à jour est anormalement lourde : elle n'a pas été téléchargée", "This update is abnormally large: it was not downloaded").into());
     }
 
     let name: String = info.file_name.chars().filter(|c| c.is_ascii_alphanumeric() || "._- ".contains(*c)).collect();
@@ -183,7 +184,7 @@ pub fn download(current: &str, progress: &dyn Fn(u32)) -> Result<(File, PathBuf)
         let mut done = 0u64;
         let mut shown = u32::MAX;
         loop {
-            let n = reader.read(&mut buffer).map_err(|_| "Le téléchargement a été coupé".to_string())?;
+            let n = reader.read(&mut buffer).map_err(|_| tr("Le téléchargement a été coupé", "The download was interrupted").to_string())?;
             if n == 0 {
                 break;
             }
@@ -198,18 +199,18 @@ pub fn download(current: &str, progress: &dyn Fn(u32)) -> Result<(File, PathBuf)
             }
         }
         if total > 0 && done != total {
-            return Err("Le téléchargement est incomplet".into());
+            return Err(tr("Le téléchargement est incomplet", "The download is incomplete").into());
         }
     }
 
     let refuse = |path: &Path| {
         let _ = std::fs::remove_file(path);
-        "Cette mise à jour n'a pas pu être vérifiée : elle n'a pas été installée. Réessaie plus tard.".to_string()
+        tr("Cette mise à jour n'a pas pu être vérifiée : elle n'a pas été installée. Réessaie plus tard.", "This update couldn't be verified: it was not installed. Try again later.").to_string()
     };
     // On relit le fichier par le handle verrouillé : c'est exactement ce contenu-là qui sera lancé.
     let mut locked = open_locked(&path).map_err(|_| refuse(&path))?;
     let mut installer = vec![];
-    locked.read_to_end(&mut installer).map_err(|_| "Lecture de l'installeur impossible".to_string())?;
+    locked.read_to_end(&mut installer).map_err(|_| tr("Lecture de l'installeur impossible", "Can't read the installer").to_string())?;
     if !signed_by(&PUBLIC_KEY, &info.file_name, &installer, &signature) {
         drop(locked);
         return Err(refuse(&path));
@@ -226,7 +227,7 @@ pub fn launch_installer(path: &Path) -> Result<(), String> {
 
 #[cfg(not(windows))]
 pub fn launch_installer(_path: &Path) -> Result<(), String> {
-    Err("Disponible uniquement sur Windows".into())
+    Err(tr("Disponible uniquement sur Windows", "Only available on Windows").into())
 }
 
 #[cfg(test)]

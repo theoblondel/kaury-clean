@@ -57,3 +57,11 @@ jobs:
             3. Suis l'installeur : Kaury Clean s'installe dans Programmes, avec un raccourci dans le menu Démarrer et sur le Bureau.
 
             Pour désinstaller : **Paramètres > Applications > Kaury Clean > Désinstaller**.
+
+            ## Install Kaury Clean
+
+            1. Download **Kaury Clean_…_x64-setup.exe** below.
+            2. Open it. If Windows shows "Windows protected your PC", click **More info** then **Run anyway** (the app isn't signed yet).
+            3. Follow the installer: Kaury Clean installs in Program Files, with a shortcut in the Start menu and on the Desktop.
+
+            The app follows your Windows language (French or English), and you can switch in **About**. To uninstall: **Settings > Apps > Kaury Clean > Uninstall**.

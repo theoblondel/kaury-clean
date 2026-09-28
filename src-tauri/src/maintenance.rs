@@ -1,6 +1,7 @@
 //! Maintenance et réparation : les outils officiels de Windows, lancés pour toi avec les bonnes options.
 //! Chaque commande est fixée ici ; l'interface n'envoie que l'identifiant de la tâche.
 
+use crate::langue::{tr, anglais};
 use std::process::Command;
 
 use serde::Serialize;
@@ -16,12 +17,14 @@ struct Task {
     steps: &'static [(&'static str, &'static [&'static str])],
 }
 
-const TASKS: &[Task] = &[
+/// Les textes suivent la langue choisie : la liste se construit à chaque appel.
+fn tasks() -> Vec<Task> {
+    vec![
     Task {
         id: "restore_point",
-        name: "Créer un point de restauration",
-        detail: "Une sauvegarde de l'état de Windows, pour revenir en arrière si une réparation ou une désinstallation se passe mal. Active la protection du système si elle est coupée. À faire avant les autres tâches.",
-        duration: "1 à 2 min",
+        name: tr("Créer un point de restauration", "Create a restore point"),
+        detail: tr("Une sauvegarde de l'état de Windows, pour revenir en arrière si une réparation ou une désinstallation se passe mal. Active la protection du système si elle est coupée. À faire avant les autres tâches.", "A snapshot of Windows' state, to go back if a repair or an uninstall goes wrong. Turns on system protection if it's off. Do this before the other tasks."),
+        duration: tr("1 à 2 min", "1 to 2 min"),
         needs_admin: true,
         steps: &[(
             "powershell.exe",
@@ -35,9 +38,9 @@ const TASKS: &[Task] = &[
     },
     Task {
         id: "repair_windows",
-        name: "Réparer Windows",
-        detail: "Vérifie et répare les fichiers système abîmés (DISM puis SFC). À faire si Windows plante, affiche des erreurs bizarres ou si des applis ne s'ouvrent plus. Il faut Internet.",
-        duration: "15 à 30 min",
+        name: tr("Réparer Windows", "Repair Windows"),
+        detail: tr("Vérifie et répare les fichiers système abîmés (DISM puis SFC). À faire si Windows plante, affiche des erreurs bizarres ou si des applis ne s'ouvrent plus. Il faut Internet.", "Checks and repairs damaged system files (DISM then SFC). Do this if Windows crashes, shows strange errors or apps no longer open. Requires Internet."),
+        duration: tr("15 à 30 min", "15 to 30 min"),
         needs_admin: true,
         steps: &[
             ("DISM.exe", &["/Online", "/Cleanup-Image", "/RestoreHealth"]),
@@ -46,69 +49,70 @@ const TASKS: &[Task] = &[
     },
     Task {
         id: "component_cleanup",
-        name: "Supprimer les anciennes versions de Windows",
-        detail: "Retire les composants remplacés par les mises à jour. Libère souvent plusieurs Go.",
-        duration: "5 à 15 min",
+        name: tr("Supprimer les anciennes versions de Windows", "Remove old Windows versions"),
+        detail: tr("Retire les composants remplacés par les mises à jour. Libère souvent plusieurs Go.", "Removes components replaced by updates. Often frees several GB."),
+        duration: tr("5 à 15 min", "5 to 15 min"),
         needs_admin: true,
         steps: &[("DISM.exe", &["/Online", "/Cleanup-Image", "/StartComponentCleanup"])],
     },
     Task {
         id: "optimize_drive",
-        name: "Optimiser le disque",
-        detail: "Envoie TRIM à un SSD ou défragmente un disque dur, selon ton matériel. Garde le disque rapide.",
-        duration: "1 à 10 min",
+        name: tr("Optimiser le disque", "Optimize the drive"),
+        detail: tr("Envoie TRIM à un SSD ou défragmente un disque dur, selon ton matériel. Garde le disque rapide.", "Sends TRIM to an SSD or defragments a hard drive, depending on your hardware. Keeps the drive fast."),
+        duration: tr("1 à 10 min", "1 to 10 min"),
         needs_admin: true,
         steps: &[("defrag.exe", &["%SystemDrive%", "/O"])],
     },
     Task {
         id: "check_disk",
-        name: "Vérifier le disque",
-        detail: "Cherche les erreurs du système de fichiers sans redémarrer.",
-        duration: "2 à 10 min",
+        name: tr("Vérifier le disque", "Check the drive"),
+        detail: tr("Cherche les erreurs du système de fichiers sans redémarrer.", "Looks for file system errors without restarting."),
+        duration: tr("2 à 10 min", "2 to 10 min"),
         needs_admin: true,
         steps: &[("chkdsk.exe", &["%SystemDrive%", "/scan"])],
     },
     Task {
         id: "hibernate_off",
-        name: "Désactiver la veille prolongée",
-        detail: "Supprime le fichier hiberfil.sys, souvent aussi gros que la moitié de ta RAM. Utile sur un PC fixe ; sur un portable, garde-la si tu utilises la veille prolongée. Le démarrage rapide de Windows est aussi désactivé.",
-        duration: "quelques secondes",
+        name: tr("Désactiver la veille prolongée", "Turn off hibernation"),
+        detail: tr("Supprime le fichier hiberfil.sys, souvent aussi gros que la moitié de ta RAM. Utile sur un PC fixe ; sur un portable, garde-la si tu utilises la veille prolongée. Le démarrage rapide de Windows est aussi désactivé.", "Deletes hiberfil.sys, often as large as half your RAM. Useful on a desktop PC; on a laptop, keep it if you use hibernation. Windows Fast Startup is also turned off."),
+        duration: tr("quelques secondes", "a few seconds"),
         needs_admin: true,
         steps: &[("powercfg.exe", &["/hibernate", "off"])],
     },
     Task {
         id: "flush_dns",
-        name: "Vider le cache DNS",
-        detail: "Règle les sites qui ne chargent plus ou qui affichent une ancienne version.",
-        duration: "quelques secondes",
+        name: tr("Vider le cache DNS", "Flush the DNS cache"),
+        detail: tr("Règle les sites qui ne chargent plus ou qui affichent une ancienne version.", "Fixes sites that no longer load or show an old version."),
+        duration: tr("quelques secondes", "a few seconds"),
         needs_admin: false,
         steps: &[("ipconfig.exe", &["/flushdns"])],
     },
     Task {
         id: "restart_explorer",
-        name: "Redémarrer l'Explorateur",
-        detail: "Débloque la barre des tâches, le menu Démarrer ou le Bureau quand ils sont figés.",
-        duration: "quelques secondes",
+        name: tr("Redémarrer l'Explorateur", "Restart Explorer"),
+        detail: tr("Débloque la barre des tâches, le menu Démarrer ou le Bureau quand ils sont figés.", "Unfreezes the taskbar, Start menu or Desktop when they're stuck."),
+        duration: tr("quelques secondes", "a few seconds"),
         needs_admin: false,
         steps: &[("taskkill.exe", &["/F", "/IM", "explorer.exe"]), ("explorer.exe", &[])],
     },
     Task {
         id: "refresh_icons",
-        name: "Rafraîchir les icônes",
-        detail: "Corrige les icônes blanches ou mauvaises sur le Bureau et dans l'Explorateur.",
-        duration: "quelques secondes",
+        name: tr("Rafraîchir les icônes", "Refresh icons"),
+        detail: tr("Corrige les icônes blanches ou mauvaises sur le Bureau et dans l'Explorateur.", "Fixes blank or wrong icons on the Desktop and in Explorer."),
+        duration: tr("quelques secondes", "a few seconds"),
         needs_admin: false,
         steps: &[("ie4uinit.exe", &["-show"])],
     },
     Task {
         id: "reset_store",
-        name: "Réparer le Microsoft Store",
-        detail: "Vide le cache du Store quand les téléchargements ou les mises à jour d'applis bloquent.",
-        duration: "quelques secondes",
+        name: tr("Réparer le Microsoft Store", "Repair the Microsoft Store"),
+        detail: tr("Vide le cache du Store quand les téléchargements ou les mises à jour d'applis bloquent.", "Clears the Store cache when app downloads or updates get stuck."),
+        duration: tr("quelques secondes", "a few seconds"),
         needs_admin: false,
         steps: &[("wsreset.exe", &[])],
     },
-];
+    ]
+}
 
 #[derive(Serialize)]
 pub struct TaskInfo {
@@ -126,7 +130,7 @@ pub struct TaskResult {
 }
 
 pub fn list() -> Vec<TaskInfo> {
-    TASKS
+    tasks()
         .iter()
         .map(|t| TaskInfo { id: t.id, name: t.name, detail: t.detail, duration: t.duration, needs_admin: t.needs_admin })
         .collect()
@@ -194,7 +198,7 @@ fn run_streaming(cmd: &mut Command, label: &str, progress: &dyn Fn(&str)) -> Res
     use std::io::Read;
     use std::process::Stdio;
     let mut child = cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| format!("{label} : {e}"))?;
-    let mut stdout = child.stdout.take().ok_or("Sortie indisponible")?;
+    let mut stdout = child.stdout.take().ok_or(tr("Sortie indisponible", "Output unavailable"))?;
     let mut output = vec![];
     let mut chunk = [0u8; 4096];
     let mut shown = None;
@@ -225,11 +229,17 @@ fn run_streaming(cmd: &mut Command, label: &str, progress: &dyn Fn(&str)) -> Res
 }
 
 pub fn run(id: &str, progress: &dyn Fn(&str)) -> Result<TaskResult, String> {
-    let task = TASKS.iter().find(|t| t.id == id).ok_or("Tâche inconnue")?;
+    let tasks = tasks();
+    let task = tasks.iter().find(|t| t.id == id).ok_or(tr("Tâche inconnue", "Unknown task"))?;
     let total = task.steps.len();
     for (i, (program, args)) in task.steps.iter().enumerate() {
         let name = program.trim_end_matches(".exe");
-        let label = if total > 1 { format!("Étape {} sur {total} · {name}", i + 1) } else { format!("{name} en cours") };
+        let label = match (anglais(), total > 1) {
+            (true, true) => format!("Step {} of {total} · {name}", i + 1),
+            (true, false) => format!("{name} running"),
+            (false, true) => format!("Étape {} sur {total} · {name}", i + 1),
+            (false, false) => format!("{name} en cours"),
+        };
         progress(&label);
 
         // Windows relance normalement l'Explorateur tout seul quand il s'arrête. On ne le lance
@@ -262,22 +272,26 @@ pub fn run(id: &str, progress: &dyn Fn(&str)) -> Result<TaskResult, String> {
             let detail = tail(&output);
             return Ok(TaskResult {
                 ok: false,
-                message: if detail.is_empty() { format!("{name} a échoué (code {code})") } else { detail },
+                message: match (detail.is_empty(), anglais()) {
+                    (false, _) => detail,
+                    (true, true) => format!("{name} failed (code {code})"),
+                    (true, false) => format!("{name} a échoué (code {code})"),
+                },
             });
         }
     }
     let message = match id {
-        "repair_windows" => "Vérification terminée. Si des fichiers ont été réparés, redémarre ton PC.",
-        "component_cleanup" => "Anciennes versions supprimées.",
-        "optimize_drive" => "Disque optimisé.",
-        "check_disk" => "Disque vérifié : aucun problème bloquant.",
-        "flush_dns" => "Cache DNS vidé.",
-        "restart_explorer" => "Explorateur redémarré.",
-        "refresh_icons" => "Icônes rafraîchies.",
-        "reset_store" => "Store réinitialisé : il va s'ouvrir tout seul.",
-        "restore_point" => "Point de restauration créé. Windows n'en garde qu'un par 24 h : si un point récent existait, c'est lui qui sert.",
-        "hibernate_off" => "Veille prolongée désactivée, hiberfil.sys supprimé. Pour la réactiver : powercfg /h on.",
-        _ => "Terminé.",
+        "repair_windows" => tr("Vérification terminée. Si des fichiers ont été réparés, redémarre ton PC.", "Check complete. If files were repaired, restart your PC."),
+        "component_cleanup" => tr("Anciennes versions supprimées.", "Old versions removed."),
+        "optimize_drive" => tr("Disque optimisé.", "Drive optimized."),
+        "check_disk" => tr("Disque vérifié : aucun problème bloquant.", "Drive checked: no blocking issues."),
+        "flush_dns" => tr("Cache DNS vidé.", "DNS cache flushed."),
+        "restart_explorer" => tr("Explorateur redémarré.", "Explorer restarted."),
+        "refresh_icons" => tr("Icônes rafraîchies.", "Icons refreshed."),
+        "reset_store" => tr("Store réinitialisé : il va s'ouvrir tout seul.", "Store reset: it will open on its own."),
+        "restore_point" => tr("Point de restauration créé. Windows n'en garde qu'un par 24 h : si un point récent existait, c'est lui qui sert.", "Restore point created. Windows keeps only one per 24 h: if a recent one existed, that's the one being used."),
+        "hibernate_off" => tr("Veille prolongée désactivée, hiberfil.sys supprimé. Pour la réactiver : powercfg /h on.", "Hibernation turned off, hiberfil.sys deleted. To turn it back on: powercfg /h on."),
+        _ => tr("Terminé.", "Done."),
     };
     Ok(TaskResult { ok: true, message: message.into() })
 }
@@ -306,17 +320,18 @@ mod tests {
 
     #[test]
     fn every_task_has_steps_and_a_unique_id() {
-        let mut ids: Vec<_> = TASKS.iter().map(|t| t.id).collect();
+        let tasks = tasks();
+        let mut ids: Vec<_> = tasks.iter().map(|t| t.id).collect();
         ids.sort();
         ids.dedup();
-        assert_eq!(ids.len(), TASKS.len());
-        assert!(TASKS.iter().all(|t| !t.steps.is_empty()));
+        assert_eq!(ids.len(), tasks.len());
+        assert!(tasks.iter().all(|t| !t.steps.is_empty()));
     }
 
     #[cfg(windows)]
     #[test]
     fn every_program_is_found_inside_windows() {
-        for task in TASKS {
+        for task in tasks() {
             for (program, _) in task.steps {
                 let path = crate::garde::windows_program(program);
                 assert!(path.is_file(), "{program} introuvable : {}", path.display());

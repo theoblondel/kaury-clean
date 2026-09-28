@@ -21,6 +21,8 @@
 
 <p align="center"><a href="README.md">English</a> · <b>Français</b></p>
 
+> L'appli parle français et anglais : elle suit la langue de Windows, et tu peux changer dans **À propos**.
+
 <p align="center"><sub>Kaury Clean te plaît ? Une ⭐ en haut à droite aide les autres à le trouver.</sub></p>
 
 ---
@@ -126,6 +128,9 @@ src-tauri/src/
   update.rs           vérification et installation des mises à jour
   elevation.rs        droits administrateur, ouverture des liens
   fsutil.rs           mesure et vidage de dossiers
+  langue.rs           français ou anglais, choisi par l'interface
+  garde.rs            garde-fous : vrais chemins, règles en administrateur, outils par chemin complet
+  space.rs            place du disque (lecture seule)
 design/
   logo.svg, k.svg     icône de l'appli et monogramme Kaury
   screens/            captures de l'appli

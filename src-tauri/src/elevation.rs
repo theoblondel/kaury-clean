@@ -1,5 +1,7 @@
 //! Droits administrateur : savoir si on les a, et relancer l'appli avec.
 
+use crate::langue::tr;
+
 #[cfg(windows)]
 pub fn is_elevated() -> bool {
     unsafe { windows_sys::Win32::UI::Shell::IsUserAnAdmin() != 0 }
@@ -21,7 +23,7 @@ fn shell_execute(verb: &str, file: &str, params: &str) -> Result<(), String> {
     if result as isize > 32 {
         Ok(())
     } else {
-        Err("Lancement annulé".into())
+        Err(tr("Lancement annulé", "Launch cancelled").into())
     }
 }
 
@@ -38,7 +40,7 @@ pub fn shell_open(file: &str, params: &str) -> Result<(), String> {
 #[cfg(windows)]
 pub fn relaunch_as_admin() -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    shell_execute("runas", &exe.to_string_lossy(), "").map_err(|_| "Relance annulée".into())
+    shell_execute("runas", &exe.to_string_lossy(), "").map_err(|_| tr("Relance annulée", "Relaunch cancelled").into())
 }
 
 #[cfg(not(windows))]
@@ -48,10 +50,10 @@ pub fn is_elevated() -> bool {
 
 #[cfg(not(windows))]
 pub fn relaunch_as_admin() -> Result<(), String> {
-    Err("Disponible uniquement sur Windows".into())
+    Err(tr("Disponible uniquement sur Windows", "Only available on Windows").into())
 }
 
 #[cfg(not(windows))]
 pub fn shell_open(_file: &str, _params: &str) -> Result<(), String> {
-    Err("Disponible uniquement sur Windows".into())
+    Err(tr("Disponible uniquement sur Windows", "Only available on Windows").into())
 }
