@@ -33,12 +33,12 @@ One button. Kaury Clean reviews junk files, startup apps, memory, disk, installe
 
 <table>
   <tr>
-    <td width="50%"><img src="design/screens/home.jpg" alt="Home: smart care"></td>
-    <td width="50%"><img src="design/screens/results.jpg" alt="Scan results as cards"></td>
+    <td width="50%"><img src="design/screens/en/home.jpg" alt="Home: smart care"></td>
+    <td width="50%"><img src="design/screens/en/results.jpg" alt="Scan results as cards"></td>
   </tr>
   <tr>
-    <td><img src="design/screens/running.jpg" alt="Cleaning section by section"></td>
-    <td><img src="design/screens/done.jpg" alt="Done: your PC is in great shape"></td>
+    <td><img src="design/screens/en/running.jpg" alt="Cleaning section by section"></td>
+    <td><img src="design/screens/en/done.jpg" alt="Done: your PC is in great shape"></td>
   </tr>
 </table>
 
@@ -55,14 +55,14 @@ One button. Kaury Clean reviews junk files, startup apps, memory, disk, installe
 
 <table>
   <tr>
-    <td width="33%"><img src="design/screens/clean.jpg" alt="Cleanup"></td>
-    <td width="33%"><img src="design/screens/memory.jpg" alt="Memory"></td>
-    <td width="33%"><img src="design/screens/uninstall.jpg" alt="Uninstall"></td>
+    <td width="33%"><img src="design/screens/en/clean.jpg" alt="Cleanup"></td>
+    <td width="33%"><img src="design/screens/en/memory.jpg" alt="Memory"></td>
+    <td width="33%"><img src="design/screens/en/uninstall.jpg" alt="Uninstall"></td>
   </tr>
   <tr>
-    <td><img src="design/screens/organize.jpg" alt="Tidy my files"></td>
-    <td><img src="design/screens/maintenance.jpg" alt="Repair"></td>
-    <td><img src="design/screens/about.jpg" alt="About"></td>
+    <td><img src="design/screens/en/organize.jpg" alt="Tidy my files"></td>
+    <td><img src="design/screens/en/maintenance.jpg" alt="Repair"></td>
+    <td><img src="design/screens/en/about.jpg" alt="About"></td>
   </tr>
 </table>
 
