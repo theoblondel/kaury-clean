@@ -150,6 +150,10 @@ Chaque push sur `main` compile aussi l'installeur (onglet **Actions**, artefact 
 
 ---
 
+## Licence
+
+Kaury Clean est open source, sous [licence MIT](LICENSE).
+
 <p align="center">
   <img src="design/logo.svg" width="56" alt=""><br>
   Conçu et développé par <a href="https://kaury.studio"><b>Kaury Studio</b></a>, Vevey<br>

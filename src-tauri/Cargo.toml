@@ -1,4 +1,5 @@
 [package]
+license = "MIT"
 name = "kaury-clean"
 version = "0.9.1"
 description = "Kaury Clean, un nettoyeur de PC Windows"

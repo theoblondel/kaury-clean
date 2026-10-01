@@ -141,6 +141,10 @@ Release steps are described in the [French README](README.fr.md#publier-une-nouv
 
 ---
 
+## License
+
+Kaury Clean is open source under the [MIT License](LICENSE).
+
 <p align="center">
   <img src="design/logo.svg" width="56" alt=""><br>
   Designed and built by <a href="https://kaury.studio"><b>Kaury Studio</b></a>, Vevey, Switzerland<br>
