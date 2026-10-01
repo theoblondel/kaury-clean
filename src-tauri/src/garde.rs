@@ -38,12 +38,27 @@ pub fn plain(path: &Path) -> PathBuf {
     }
 }
 
-/// Chemin réel d'un dossier à vider, seulement si aucun lien ni jonction ne se trouve sur le chemin.
+/// Lien posé par le système lui-même : sur macOS, /var, /tmp et /etc mènent à /private et
+/// appartiennent à root. Un lien glissé par un programme ou un utilisateur, lui, ne l'est pas.
+#[cfg(unix)]
+fn system_link(meta: &fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    meta.uid() == 0
+}
+
+#[cfg(not(unix))]
+fn system_link(_meta: &fs::Metadata) -> bool {
+    false
+}
+
+/// Chemin réel d'un dossier à vider, seulement si aucun lien ni jonction ne se trouve sur le chemin
+/// (à part les liens du système, voir `system_link`).
 /// Sinon le dossier mènerait ailleurs que prévu : on n'y touche pas.
 pub fn safe_root(root: &Path) -> Option<PathBuf> {
     let real = fs::canonicalize(root).ok()?;
     for part in root.ancestors().filter(|a| a.parent().is_some()) {
-        if fs::symlink_metadata(part).ok()?.file_type().is_symlink() {
+        let meta = fs::symlink_metadata(part).ok()?;
+        if meta.file_type().is_symlink() && !system_link(&meta) {
             return None;
         }
     }
