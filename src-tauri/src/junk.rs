@@ -100,7 +100,19 @@ fn firefox_caches(local: &Option<PathBuf>) -> Vec<PathBuf> {
     entries.flatten().map(|e| e.path().join("cache2")).collect()
 }
 
+/// La liste des dossiers dépend du système : celle de macOS est dans le module `mac` plus bas.
+#[cfg(target_os = "macos")]
 fn targets() -> Vec<Target> {
+    mac::targets()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn targets() -> Vec<Target> {
+    windows_targets()
+}
+
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn windows_targets() -> Vec<Target> {
     let local = env_path("LOCALAPPDATA");
     let roaming = env_path("APPDATA");
     // Dossiers de Windows donnés par Windows, jamais par une variable qu'un programme pourrait détourner.
@@ -531,13 +543,125 @@ mod recycle_bin {
     }
 }
 
-#[cfg(not(windows))]
+/// Corbeille de macOS : ~/.Trash. macOS la protège (accès complet au disque) : sans cette
+/// autorisation, la lecture échoue et la corbeille n'est simplement pas proposée.
+#[cfg(target_os = "macos")]
+mod recycle_bin {
+    use std::path::PathBuf;
+    use std::time::Duration;
+
+    fn trash() -> Option<PathBuf> {
+        dirs::home_dir().map(|h| h.join(".Trash"))
+    }
+
+    pub fn query() -> Option<(u64, u64)> {
+        let t = trash()?;
+        std::fs::read_dir(&t).ok()?;
+        Some(crate::fsutil::dir_size(&t, Duration::ZERO))
+    }
+
+    pub fn empty() -> bool {
+        let Some(t) = trash() else { return false };
+        let (_, _, skipped) = crate::fsutil::clean_dir(&t, Duration::ZERO);
+        skipped == 0
+    }
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 mod recycle_bin {
     pub fn query() -> Option<(u64, u64)> {
         None
     }
     pub fn empty() -> bool {
         false
+    }
+}
+
+/// Dossiers nettoyés sur macOS. Même règle que sur Windows : que des caches qui se recréent tout
+/// seuls, jamais de données. Chaque cible doit avoir été vue sur un vrai Mac (scripts/inventaire-mac.sh)
+/// avant d'être publiée.
+#[cfg(target_os = "macos")]
+mod mac {
+    use super::{Target, DAY};
+    use crate::langue::tr;
+    use std::path::PathBuf;
+    use std::time::Duration;
+
+    fn under(base: &Option<PathBuf>, rels: &[&str]) -> Vec<PathBuf> {
+        base.iter().flat_map(|b| rels.iter().map(move |r| b.join(r))).collect()
+    }
+
+    /// Caches d'une appli Electron rangée dans Application Support : jamais ses réglages ni ses données.
+    fn electron(support: &Option<PathBuf>, app: &str, extra: &[&str]) -> Vec<PathBuf> {
+        let Some(s) = support else { return vec![] };
+        ["Cache", "Code Cache", "GPUCache"].iter().chain(extra).map(|sub| s.join(app).join(sub)).collect()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn t(
+        id: &'static str,
+        group: &'static str,
+        name: &'static str,
+        detail: &'static str,
+        paths: Vec<PathBuf>,
+        min_age: Duration,
+        processes: &'static [(&'static str, &'static str)],
+    ) -> Target {
+        Target { id, group, name, detail, paths, min_age, processes, needs_admin: false }
+    }
+
+    fn firefox(caches: &Option<PathBuf>) -> Vec<PathBuf> {
+        let Some(c) = caches else { return vec![] };
+        let Ok(entries) = std::fs::read_dir(c.join("Firefox/Profiles")) else { return vec![] };
+        entries.flatten().map(|e| e.path().join("cache2")).collect()
+    }
+
+    pub fn targets() -> Vec<Target> {
+        let home = dirs::home_dir();
+        let library = home.as_ref().map(|h| h.join("Library"));
+        let caches = library.as_ref().map(|l| l.join("Caches"));
+        let support = library.as_ref().map(|l| l.join("Application Support"));
+
+        let mut dev_js = under(&home, &[".npm/_cacache"]);
+        dev_js.extend(under(&caches, &["Yarn"]));
+        let mut code_editors = electron(&support, "Code", &["CachedData", "CachedExtensionVSIXs"]);
+        code_editors.extend(electron(&support, "Cursor", &["CachedData", "CachedExtensionVSIXs"]));
+
+        vec![
+            t("mac_logs", "system", tr("Journaux des applis", "App logs"), "~/Library/Logs",
+              under(&library, &["Logs"]), DAY, &[]),
+            t("xcode_derived", "apps", "Xcode", tr("Fichiers de compilation (DerivedData)", "Build files (DerivedData)"),
+              under(&library, &["Developer/Xcode/DerivedData"]), Duration::ZERO, &[("Xcode", "Xcode")]),
+            t("simulator_caches", "apps", tr("Simulateurs iOS", "iOS Simulators"), tr("Caches des simulateurs", "Simulator caches"),
+              under(&library, &["Developer/CoreSimulator/Caches"]), Duration::ZERO, &[("Simulator", "Simulator")]),
+            t("homebrew", "apps", "Homebrew", tr("Paquets déjà installés", "Packages already installed"),
+              under(&caches, &["Homebrew"]), Duration::ZERO, &[]),
+            t("dev_js", "apps", "npm / Yarn", tr("Paquets téléchargés", "Downloaded packages"),
+              dev_js, Duration::ZERO, &[]),
+            t("dev_python", "apps", "pip", tr("Paquets Python téléchargés", "Downloaded Python packages"),
+              under(&caches, &["pip"]), Duration::ZERO, &[]),
+            t("code_editors", "apps", "VS Code / Cursor", tr("Caches de l'éditeur", "Editor caches"),
+              code_editors, Duration::ZERO, &[("Code", "VS Code"), ("Cursor", "Cursor")]),
+            t("discord", "apps", "Discord", tr("Images et vidéos déjà vues", "Images and videos already seen"),
+              electron(&support, "discord", &[]), Duration::ZERO, &[("Discord", "Discord")]),
+            t("slack", "apps", "Slack", tr("Cache de l'appli", "App cache"),
+              electron(&support, "Slack", &[]), Duration::ZERO, &[("Slack", "Slack")]),
+            t("spotify", "apps", "Spotify", tr("Morceaux en cache (pas tes téléchargements)", "Cached tracks (not your downloads)"),
+              under(&caches, &["com.spotify.client"]), Duration::ZERO, &[("Spotify", "Spotify")]),
+            t("adobe", "apps", "Adobe", tr("Caches des applis Adobe", "Adobe app caches"),
+              { let mut a = under(&caches, &["Adobe"]); a.extend(under(&support, &["Adobe/Common/Media Cache Files", "Adobe/Common/Peak Files"])); a },
+              Duration::ZERO, &[("Adobe Premiere Pro", "Premiere Pro"), ("After Effects", "After Effects")]),
+            t("steam", "apps", "Steam", tr("Cache de la boutique", "Store cache"),
+              under(&support, &["Steam/config/htmlcache"]), Duration::ZERO, &[("steam_osx", "Steam")]),
+            t("chrome", "browsers", "Google Chrome", tr("Cache (pas tes mots de passe ni tes sessions)", "Cache (not your passwords or sessions)"),
+              under(&caches, &["Google/Chrome"]), Duration::ZERO, &[("Google Chrome", "Chrome")]),
+            t("edge", "browsers", "Microsoft Edge", tr("Cache (pas tes mots de passe ni tes sessions)", "Cache (not your passwords or sessions)"),
+              under(&caches, &["Microsoft Edge"]), Duration::ZERO, &[("Microsoft Edge", "Edge")]),
+            t("brave", "browsers", "Brave", tr("Cache (pas tes mots de passe ni tes sessions)", "Cache (not your passwords or sessions)"),
+              under(&caches, &["BraveSoftware/Brave-Browser"]), Duration::ZERO, &[("Brave Browser", "Brave")]),
+            t("firefox", "browsers", "Firefox", tr("Cache (pas tes mots de passe ni tes sessions)", "Cache (not your passwords or sessions)"),
+              firefox(&caches), Duration::ZERO, &[("firefox", "Firefox")]),
+        ]
     }
 }
 

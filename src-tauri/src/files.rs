@@ -268,7 +268,12 @@ pub fn reveal(roots: &[PathBuf], path: &str) -> Result<(), String> {
             .map(|_| ())
             .map_err(|e| e.to_string())
     }
-    #[cfg(not(windows))]
+    // macOS : le Finder s'ouvre sur le dossier, avec le fichier sélectionné.
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("/usr/bin/open").arg("-R").arg(&path).spawn().map(|_| ()).map_err(|e| e.to_string())
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = path;
         Err(tr("Disponible uniquement sur Windows", "Only available on Windows").into())

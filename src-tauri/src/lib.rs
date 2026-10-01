@@ -42,11 +42,13 @@ fn set_language(lang: String) {
 struct AppInfo {
     version: String,
     elevated: bool,
+    /// « windows » ou « macos » : l'interface cache ce qui n'existe pas sur le système.
+    platform: &'static str,
 }
 
 #[tauri::command]
 fn app_info(app: AppHandle) -> AppInfo {
-    AppInfo { version: app.package_info().version.to_string(), elevated: elevation::is_elevated() }
+    AppInfo { version: app.package_info().version.to_string(), elevated: elevation::is_elevated(), platform: std::env::consts::OS }
 }
 
 #[tauri::command]
@@ -74,7 +76,12 @@ fn disk_info() -> Option<DiskInfo> {
         .find(|d| d.mount_point().to_string_lossy().trim_end_matches('\\').eq_ignore_ascii_case(&system))
         .or_else(|| disks.list().iter().max_by_key(|d| d.total_space()))
         .map(|d| DiskInfo {
-            name: system.trim_end_matches('\\').to_string(),
+            // macOS : le nom du volume (« Macintosh HD »), plus parlant que « / ».
+            name: if cfg!(target_os = "macos") {
+                Some(d.name().to_string_lossy().into_owned()).filter(|n| !n.is_empty()).unwrap_or_else(|| "Macintosh HD".into())
+            } else {
+                system.trim_end_matches('\\').to_string()
+            },
             total: d.total_space(),
             free: d.available_space(),
         })

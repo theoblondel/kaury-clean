@@ -14,7 +14,17 @@ const LANG = (() => {
   return /^fr\b/i.test(navigator.language || "") ? "fr" : "en";
 })();
 const EN = LANG === "en";
-const tr = (fr, en) => (EN ? en : fr);
+// macOS : le même code, avec les mots du Mac, et sans les sections qui n'existent que sous Windows.
+// Détecté dès le chargement (avant les textes fixes) ; app_info le confirme côté moteur.
+const MAC = /Mac/i.test(navigator.platform || navigator.userAgent || "");
+const MAC_WORDS = [
+  [/\bRecycle Bin\b/g, "Trash"], [/\bl'Explorateur\b/g, "le Finder"], [/\bExplorer\b/g, "Finder"],
+  [/\bTon PC\b/g, "Ton Mac"], [/\bton PC\b/g, "ton Mac"], [/\bYour PC\b/g, "Your Mac"], [/\byour PC\b/g, "your Mac"],
+  [/\bdu PC\b/g, "du Mac"], [/\bthe PC\b/g, "the Mac"], [/\bWindows\b/g, "macOS"],
+  [/Performances et démarrage/g, "Performances et mémoire"], [/Performance and startup/g, "Performance and memory"],
+];
+const macify = (s) => (MAC && typeof s === "string" ? MAC_WORDS.reduce((t, [re, w]) => t.replace(re, w), s) : s);
+const tr = (fr, en) => macify(EN ? en : fr);
 const LOCALE = EN ? "en-US" : "fr-CH";
 const num = (n) => n.toLocaleString(LOCALE);
 document.documentElement.lang = LANG;
@@ -108,6 +118,12 @@ const SECTIONS = {
   repair: [["maintenance", "Maintenance"]],
   about: [["about", tr("À propos", "About")]],
 };
+// Sur Mac : pas encore de démarrage, de désinstallation ni de réparation (prévus pour une version suivante).
+if (MAC) {
+  SECTIONS.perf = SECTIONS.perf.filter(([v]) => v !== "startup");
+  delete SECTIONS.apps;
+  delete SECTIONS.repair;
+}
 const lastTab = {};
 const sectionOf = (view) => Object.keys(SECTIONS).find((s) => SECTIONS[s].some(([v]) => v === view));
 
@@ -222,8 +238,8 @@ async function runCare() {
     const [j, mem, startup, installed, oldFiles] = await Promise.all([
       invoke("scan_junk"),
       soft(invoke("memory_status")),
-      soft(invoke("list_startup_apps")),
-      soft(invoke("list_installed_apps")),
+      MAC ? null : soft(invoke("list_startup_apps")),
+      MAC ? null : soft(invoke("list_installed_apps")),
       soft(invoke("find_old_downloads", { minDays: 180 })),
     ]);
     junk = j;
@@ -287,6 +303,9 @@ function renderBento() {
     card({ cls: "wide", kicker: tr("Nettoyage", "Cleanup"), icon: "broom", tile: "t-clean",
       big: done ? fmt(r.freed) : fmt(careBytes()), sub: done ? tr("libérés", "freed") : tr("de fichiers inutiles", "of junk files"),
       status: done ? { kind: "ok", text: tr("Nettoyé", "Cleaned") } : null, action: done ? null : { go: "system", label: tr("Détails", "Details") }, extra: cleanExtra }),
+    MAC ? card({ kicker: tr("Performances", "Performance"), icon: "bolt", tile: "t-perf",
+      big: memPct != null ? `${memPct}${EN ? "" : " "}%` : "—", sub: tr("de mémoire utilisée", "of memory in use"),
+      action: { go: "memory", label: tr("Voir", "View") } }) :
     card({ kicker: tr("Performances", "Performance"), icon: "bolt", tile: "t-perf",
       big: startupOn != null ? `${startupOn} app${EN ? "" : "li"}${startupOn > 1 ? "s" : ""}` : "—",
       sub: `${tr("au démarrage", "at startup")}${memPct != null ? ` · ${tr("mémoire", "memory")} ${memPct}${EN ? "" : " "}%` : ""}`,
@@ -295,7 +314,7 @@ function renderBento() {
       big: diskInfo ? fmt(diskInfo.free) : "—", sub: diskInfo ? tr(`libres sur ${fmt(diskInfo.total)}`, `free of ${fmt(diskInfo.total)}`) : "",
       status: done ? { kind: "ok", text: tr("Mis à jour", "Updated") } : null,
       extra: diskInfo ? `<div class="bar"><i style="width:${(((diskInfo.total - diskInfo.free) / diskInfo.total) * 100).toFixed(1)}%"></i></div>` : "" }),
-    card({ cls: "half", kicker: "Applications", icon: "grid", tile: "t-apps",
+    MAC ? "" : card({ cls: "half", kicker: "Applications", icon: "grid", tile: "t-apps",
       big: care.installed ? tr(`${care.installed.length} applis`, `${care.installed.length} apps`) : "—",
       sub: appsBytes ? tr(`${fmt(appsBytes)} au total`, `${fmt(appsBytes)} in total`) : tr("installées", "installed"),
       status: done ? { kind: "ok", text: tr("Vérifiées", "Checked") } : null, action: { go: "uninstall", label: tr("Examiner", "Review") } }),
@@ -329,7 +348,7 @@ async function runCareActions() {
   const steps = Object.keys(GROUPS)
     .map((g) => ({ key: g, label: GROUPS[g], ids: junk.filter((i) => i.group === g && ids.includes(i.id)).map((i) => i.id) }))
     .filter((st) => st.ids.length);
-  steps.push({ key: "dns", label: tr("Cache DNS", "DNS cache"), ids: [] });
+  if (!MAC) steps.push({ key: "dns", label: tr("Cache DNS", "DNS cache"), ids: [] });
 
   careView("running");
   $("#scanTitle").textContent = tr("Nettoyage en cours", "Cleaning");
@@ -612,6 +631,10 @@ document.addEventListener("contextmenu", (e) => {
 // ---------- Démarrage de l'interface ----------
 (async () => {
   translateStatic();
+  if (MAC) {
+    macifyStatic();
+    $$('[data-section="apps"], [data-section="repair"]').forEach((b) => (b.hidden = true));
+  }
   // Le moteur doit connaître la langue avant ses premiers textes (analyse, erreurs, tâches).
   try { await invoke("set_language", { lang: LANG }); } catch (e) { console.error(e); }
   try {
@@ -626,6 +649,12 @@ document.addEventListener("contextmenu", (e) => {
   careView("idle");
   checkUpdateQuietly();
 })();
+
+function macifyStatic() {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) n.textContent = macify(n.textContent);
+  for (const attr of ["title", "placeholder", "aria-label"]) $$(`[${attr}]`).forEach((el) => el.setAttribute(attr, macify(el.getAttribute(attr))));
+}
 
 // Textes fixes de index.html : chaque élément porte sa version anglaise dans data-en
 // (et data-en-title, data-en-placeholder… pour les attributs).
