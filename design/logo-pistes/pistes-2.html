@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Kaury Clean — pistes de logo, série 2</title>
+<style>
+@font-face { font-family: U; font-weight: 800; src: url(../../../web/clean/src/assets/fonts/Unbounded-latin-5.woff2) format("woff2"); }
+@font-face { font-family: M; font-weight: 700; src: url(../../../web/clean/src/assets/fonts/Manrope-latin-3.woff2) format("woff2"); }
+* { margin: 0; box-sizing: border-box; }
+body { width: 1800px; background: #F1E8CB; color: #1C1A1A; font-family: M, sans-serif; padding: 70px; }
+h1 { font: 800 54px/1 U; letter-spacing: -.04em; margin-bottom: 14px; }
+.sous { font-size: 22px; opacity: .7; margin-bottom: 50px; }
+.grille { display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; }
+.piste { background: #FBF6E6; border-radius: 34px; padding: 34px; }
+.piste h2 { font: 800 30px/1.1 U; letter-spacing: -.03em; margin: 22px 0 6px; }
+.piste h2 span { color: #A83E0D; }
+.piste p { font-size: 18px; opacity: .72; line-height: 1.45; min-height: 52px; }
+.grand { width: 100%; aspect-ratio: 1; display: block; filter: drop-shadow(0 24px 30px rgba(90,50,20,.25)); }
+.petits { display: flex; align-items: center; gap: 22px; margin-top: 22px; padding: 16px 20px; border-radius: 18px; background: #140F0E; }
+.petits svg { display: block; }
+.petits .clair { background: #F1E8CB; border-radius: 12px; padding: 10px; }
+.petits small { color: #B3A994; font-size: 15px; margin-left: auto; }
+</style>
+</head>
+<body>
+<h1>Kaury Clean — série 2 : le balai en action</h1>
+<p class="sous">Un balai plus épais et plus rond, toujours penché, pour rester lisible en tout petit. Chaque piste lui ajoute une façon de dire « c'est propre ».</p>
+<div class="grille" id="grille"></div>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="degrade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF8A4C"/><stop offset=".55" stop-color="#F56E2E"/><stop offset="1" stop-color="#EC6526"/></linearGradient>
+    <symbol id="tuile" viewBox="0 0 1024 1024"><rect x="48" y="48" width="928" height="928" rx="216" fill="url(#degrade)"/></symbol>
+    <path id="etincelle" d="M0 -100 L22 -22 L100 0 L22 22 L0 100 L-22 22 L-100 0 L-22 -22 Z"/>
+  </defs>
+</svg>
+
+<script>
+const C = '#F1E8CB', O = '#F56E2E';
+const et = (x, y, s) => `<use href="#etincelle" fill="${C}" transform="translate(${x} ${y}) scale(${s})"/>`;
+// Le balai, debout et centré (x = 512), à placer avec une transformation.
+const balai = (transfo, rainures = 2) => `<g transform="${transfo}">
+  <rect x="486" y="110" width="52" height="420" rx="26" fill="${C}"/>
+  <rect x="418" y="500" width="188" height="76" rx="30" fill="${C}"/>
+  <path d="M416 594 L608 594 Q642 594 652 626 L718 824 Q726 864 686 870 Q512 896 338 870 Q298 864 306 824 L372 626 Q382 594 416 594 Z" fill="${C}"/>
+  <g stroke="${O}" stroke-width="24" stroke-linecap="round">${rainures === 3
+    ? '<path d="M452 640 L430 842"/><path d="M512 640 L512 852"/><path d="M572 640 L594 842"/>'
+    : '<path d="M478 640 L460 848"/><path d="M546 640 L564 848"/>'}</g>
+</g>`;
+const pistes = [
+  {
+    nom: 'Le balai gras', n: '1',
+    texte: 'Le balai seul, épais et rond, avec une grande étincelle là où il est passé.',
+    svg: balai('rotate(34 512 560) translate(70 -10)') + et(290, 320, 1.05) + et(420, 200, 0.45),
+  },
+  {
+    nom: 'Balai et bulles', n: '2',
+    texte: 'Le balai penché et trois bulles de savon pleines qui s\'envolent : propre, sans l\'air d\'un appareil photo.',
+    svg: balai('rotate(34 512 560) translate(70 20) scale(.92)') +
+      `<circle cx="260" cy="330" r="92" fill="${C}"/><circle cx="232" cy="300" r="22" fill="${O}" opacity=".55"/>
+       <circle cx="420" cy="215" r="54" fill="${C}"/><circle cx="404" cy="198" r="13" fill="${O}" opacity=".55"/>
+       <circle cx="200" cy="520" r="38" fill="${C}"/>`,
+  },
+  {
+    nom: 'Le balai lancé', n: '3',
+    texte: 'Des traînées de vitesse derrière le balai : ça balaie vite, ça balaie bien.',
+    svg: balai('rotate(-28 512 560) translate(60 -10) scale(.92)') +
+      `<g fill="none" stroke="${C}" stroke-linecap="round"><path d="M150 560 L330 560" stroke-width="44"/><path d="M190 680 L360 680" stroke-width="44"/><path d="M240 800 L400 800" stroke-width="44"/></g>`,
+  },
+  {
+    nom: 'Poussière et étincelle', n: '4',
+    texte: 'D\'un côté la poussière, de l\'autre l\'étincelle : l\'avant et l\'après en une image.',
+    svg: balai('rotate(28 512 560) translate(30 -30) scale(.88)') +
+      `<g fill="${C}"><circle cx="790" cy="850" r="26"/><circle cx="850" cy="800" r="18"/><circle cx="860" cy="880" r="14"/><circle cx="740" cy="900" r="12"/></g>` + et(250, 780, 0.95),
+  },
+  {
+    nom: 'Le balai en orbite', n: '5',
+    texte: 'Un arc de balayage sous la brosse, comme le geste complet, et une étincelle au-dessus.',
+    svg: `<path d="M170 470 A360 360 0 0 0 470 880" fill="none" stroke="${C}" stroke-width="54" stroke-linecap="round"/>` +
+      balai('rotate(34 512 560) translate(70 0) scale(.84)') + et(300, 280, 0.75),
+  },
+  {
+    nom: 'La tête de balai', n: '6',
+    texte: 'On zoome sur la brosse, très grande, qui sort du cadre : une icône très forte en petit.',
+    svg: `<defs><clipPath id="CL"><rect x="48" y="48" width="928" height="928" rx="216"/></clipPath></defs>
+      <g clip-path="url(#CL)">${balai('rotate(30 512 512) translate(150 70) scale(1.5) translate(-170 -260)', 3)}</g>` + et(280, 300, 0.9),
+  },
+];
+const icone = (p, taille, id) => `<svg viewBox="0 0 1024 1024" width="${taille}" height="${taille}"><use href="#tuile"/>${p.svg.replaceAll('"CL"', '"' + id + '"').replaceAll('#CL)', '#' + id + ')')}</svg>`;
+document.getElementById('grille').innerHTML = pistes.map((p, i) => `
+  <div class="piste">
+    ${icone(p, 0, 'g' + i).replace(/<svg viewBox="0 0 1024 1024" width="0" height="0">/, '<svg class="grand" viewBox="0 0 1024 1024">')}
+    <h2><span>${p.n}.</span> ${p.nom}</h2>
+    <p>${p.texte}</p>
+    <div class="petits">${icone(p, 64, 'a' + i)}${icone(p, 32, 'b' + i)}${icone(p, 16, 'c' + i)}<span class="clair">${icone(p, 32, 'e' + i)}</span><small>64 · 32 · 16 px</small></div>
+  </div>`).join('');
+</script>
+</body>
+</html>
