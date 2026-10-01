@@ -309,6 +309,44 @@ fn windows_targets() -> Vec<Target> {
             processes: &[("steam.exe", "Steam")],
             needs_admin: false,
         },
+        // Ajoutés le 01.10.2026 après inventaire d'un vrai PC. Écartés volontairement : les anciennes
+        // versions de Figma (retour arrière), Lightroom (originaux pas toujours synchronisés) et les
+        // « Caches » d'InDesign, qui contiennent InDesign Recovery (les documents non enregistrés).
+        Target {
+            id: "acrobat",
+            group: "apps",
+            name: "Adobe Acrobat",
+            detail: tr("Cache de la partie web d'Acrobat (pas tes PDF)", "Cache of Acrobat's web views (not your PDFs)"),
+            paths: chromium_caches(local.as_ref().map(|l| l.join("Adobe/Acrobat/AVWebview2/DC/EBWebView"))),
+            min_age: Duration::ZERO,
+            processes: &[("Acrobat.exe", "Acrobat")],
+            needs_admin: false,
+        },
+        Target {
+            id: "camera_raw",
+            group: "apps",
+            name: "Adobe Camera Raw",
+            detail: tr("Aperçus des photos RAW, recréés à l'ouverture", "RAW photo previews, rebuilt when opened"),
+            paths: join(&local, "Adobe/CameraRaw/Cache2"),
+            min_age: Duration::ZERO,
+            processes: &[("Photoshop.exe", "Photoshop"), ("Bridge.exe", "Bridge")],
+            needs_admin: false,
+        },
+        Target {
+            id: "game_launchers",
+            group: "apps",
+            name: tr("Lanceurs de jeux", "Game launchers"),
+            detail: tr("Pages web en cache d'EA, Ubisoft et Battle.net (tes jeux ne bougent pas)", "Cached web pages of EA, Ubisoft and Battle.net (your games stay put)"),
+            paths: {
+                let mut p = join(&local, "Electronic Arts/EA Desktop/CEF/BrowserCache");
+                p.extend(join(&local, "Ubisoft Game Launcher/cache/http2"));
+                p.extend(join(&local, "Battle.net/Cache"));
+                p
+            },
+            min_age: Duration::ZERO,
+            processes: &[("EADesktop.exe", "EA app"), ("UbisoftConnect.exe", "Ubisoft Connect"), ("Battle.net.exe", "Battle.net")],
+            needs_admin: false,
+        },
         Target {
             id: "npm_cache",
             group: "apps",
