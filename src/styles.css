@@ -63,6 +63,8 @@ button { font: inherit; color: inherit; }
 .tile svg[fill="none"] { fill: none; }
 .tile svg .spark { fill: var(--cream); stroke: none; }
 .tile svg.k { width: 64%; height: 64%; fill: var(--cream); stroke: none; }
+/* Logo (balai, depuis la 0.9.2) : il remplit la tuile, qui coupe ce qui dépasse. */
+.tile svg.balai { width: 100%; height: 100%; fill: var(--cream); stroke: none; }
 .tile.sm { width: 30px; height: 30px; }
 .t-home, .t-about { background: linear-gradient(145deg, #FFB27D, #F56E2E 55%, #C94A17); }
 .t-clean { background: linear-gradient(145deg, #FFF8E3, #F1E8CB 50%, #CBB887); }
@@ -131,6 +133,8 @@ main { position: relative; overflow: auto; }
 .tile3d span { width: 64%; height: 64%; position: relative; filter: drop-shadow(0 10px 14px rgba(90, 20, 0, 0.45)); }
 .tile3d svg { width: 100%; height: 100%; fill: var(--ink); }
 .tile3d svg.k { fill: var(--cream); }
+.tile3d span:has(svg.balai) { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tile3d svg.balai { fill: var(--cream); }
 .tile3d svg .spark { fill: var(--cream); }
 .hero-art .floor { position: absolute; bottom: 4%; width: 60%; height: 22px; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.6), transparent); filter: blur(4px); animation: floor 6s ease-in-out infinite; }
 @keyframes float { 50% { transform: translateY(-12px); } }
