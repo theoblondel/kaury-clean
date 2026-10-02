@@ -125,7 +125,8 @@ fn other_app_caches(local: &Option<PathBuf>, roaming: &Option<PathBuf>, covered:
 
     let mut out = vec![];
     for dir in &app_dirs {
-        if is_chromium_cache(&dir.join("Cache")) {
+        // Une appli déjà traitée par sa propre ligne reste entière dans celle-ci.
+        if is_chromium_cache(&dir.join("Cache")) && !covered.iter().any(|c| c.starts_with(dir)) {
             for sub in ["Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache"] {
                 out.push(dir.join(sub));
             }
@@ -142,7 +143,7 @@ fn other_app_caches(local: &Option<PathBuf>, roaming: &Option<PathBuf>, covered:
     }
     for wv in webviews {
         // Le dossier de Kaury Clean lui-même est en cours d'utilisation.
-        if wv.components().any(|c| c.as_os_str() == "studio.kaury.clean") {
+        if wv.components().any(|c| c.as_os_str() == "studio.kaury.clean") || covered.iter().any(|c| c.starts_with(&wv)) {
             continue;
         }
         out.extend(chromium_caches(Some(wv)));
