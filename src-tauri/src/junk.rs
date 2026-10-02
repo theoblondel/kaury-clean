@@ -94,6 +94,76 @@ fn prefixed(dir: Option<PathBuf>, prefix: &str) -> Vec<PathBuf> {
     entries.flatten().filter(|e| e.file_name().to_string_lossy().starts_with(prefix)).map(|e| e.path()).collect()
 }
 
+/// Dossiers enfants réels de `dir` (jamais les liens ni les jonctions, qui mèneraient ailleurs).
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn real_subdirs(dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(dir) else { return vec![] };
+    entries.flatten().filter(|e| e.file_type().is_ok_and(|t| t.is_dir() && !t.is_symlink())).map(|e| e.path()).collect()
+}
+
+/// Les applis Electron se reconnaissent à coup sûr : leur cache a le format de Chromium
+/// (`Cache/Cache_Data/index`, ou `Cache/index` + `data_0` pour les plus anciennes).
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn is_chromium_cache(cache: &Path) -> bool {
+    cache.join("Cache_Data").join("index").is_file() || (cache.join("index").is_file() && cache.join("data_0").is_file())
+}
+
+/// Caches des applis Electron et WebView2 que personne n'a listées : Claude, Riot, Outlook, launchers…
+/// Seulement Cache, Code Cache, GPUCache et les caches de shaders ; jamais les données des applis.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn other_app_caches(local: &Option<PathBuf>, roaming: &Option<PathBuf>, covered: &[PathBuf]) -> Vec<PathBuf> {
+    let mut app_dirs: Vec<PathBuf> = vec![];
+    for base in [local, roaming].into_iter().flatten() {
+        app_dirs.extend(real_subdirs(base));
+    }
+    // Les applis du Microsoft Store rangent leurs dossiers AppData dans LocalCache.
+    let packages: Vec<PathBuf> = local.iter().flat_map(|l| real_subdirs(&l.join("Packages"))).collect();
+    for p in &packages {
+        app_dirs.extend(real_subdirs(&p.join("LocalCache/Roaming")));
+        app_dirs.extend(real_subdirs(&p.join("LocalCache/Local")));
+    }
+
+    let mut out = vec![];
+    for dir in &app_dirs {
+        if is_chromium_cache(&dir.join("Cache")) {
+            for sub in ["Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache"] {
+                out.push(dir.join(sub));
+            }
+        }
+    }
+    // WebView2 : un dossier EBWebView, jusqu'à quatre niveaux sous l'appli.
+    let mut webviews = vec![];
+    // Temp et les gros caches de développeurs sont profonds et n'ont jamais de WebView2.
+    let skip = ["Packages", "Temp", "npm-cache", "uv", "pip", "Yarn", "Docker", "pnpm"];
+    let mut roots: Vec<PathBuf> = local.iter().flat_map(|l| real_subdirs(l)).filter(|d| !skip.iter().any(|s| d.ends_with(s))).collect();
+    roots.extend(packages.iter().map(|p| p.join("LocalCache")));
+    for root in roots {
+        find_named(&root, "EBWebView", 4, &mut webviews);
+    }
+    for wv in webviews {
+        // Le dossier de Kaury Clean lui-même est en cours d'utilisation.
+        if wv.components().any(|c| c.as_os_str() == "studio.kaury.clean") {
+            continue;
+        }
+        out.extend(chromium_caches(Some(wv)));
+    }
+    out.retain(|p| !covered.iter().any(|c| p.starts_with(c) || c.starts_with(p)));
+    out.sort();
+    out.dedup();
+    out
+}
+
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn find_named(dir: &Path, name: &str, depth: u32, out: &mut Vec<PathBuf>) {
+    for sub in real_subdirs(dir) {
+        if sub.file_name().is_some_and(|n| n == name) {
+            out.push(sub);
+        } else if depth > 1 {
+            find_named(&sub, name, depth - 1, out);
+        }
+    }
+}
+
 fn firefox_caches(local: &Option<PathBuf>) -> Vec<PathBuf> {
     let Some(local) = local else { return vec![] };
     let Ok(entries) = std::fs::read_dir(local.join("Mozilla/Firefox/Profiles")) else { return vec![] };
@@ -123,6 +193,10 @@ fn windows_targets() -> Vec<Target> {
     crash.extend(join(&local, "Microsoft/Windows/WER"));
     crash.extend(join(&program_data, "Microsoft/Windows/WER/ReportArchive"));
     crash.extend(join(&program_data, "Microsoft/Windows/WER/ReportQueue"));
+    // Rapports de plantage des navigateurs, envoyés ou non : jamais relus.
+    for browser in ["Google/Chrome", "Microsoft/Edge", "BraveSoftware/Brave-Browser"] {
+        crash.extend(join(&local, &format!("{browser}/User Data/Crashpad/reports")));
+    }
 
     let mut shaders = join(&local, "D3DSCache");
     shaders.extend(join(&local, "NVIDIA/DXCache"));
@@ -134,10 +208,14 @@ fn windows_targets() -> Vec<Target> {
     // La version du Microsoft Store range tout ailleurs.
     let spotify_store = store_app(&local, "SpotifyAB.SpotifyMusic_zpdnekdrzrea0", "LocalCache/Spotify");
     spotify.extend(spotify_store.iter().map(|s| s.join("Data")));
+    spotify.extend(spotify_store.iter().flat_map(|s| ["Browser/Cache", "Browser/Code Cache", "Browser/GPUCache"].map(|b| s.join(b))));
+    spotify.extend(["Browser/Cache", "Browser/Code Cache", "Browser/GPUCache"].iter().flat_map(|b| join(&local, &format!("Spotify/{b}"))));
     spotify.extend(chromium_caches(spotify_store));
 
     let mut dev_python = join(&local, "uv/cache");
     dev_python.extend(join(&local, "pip/cache"));
+    // Python du Microsoft Store : son pip range le cache dans le dossier de l'appli.
+    dev_python.extend(prefixed(local.as_ref().map(|l| l.join("Packages")), "PythonSoftwareFoundation.Python.").into_iter().map(|p| p.join("LocalCache/Local/pip/cache")));
 
     let mut code_editors = electron_caches(&roaming, "Code", &["CachedData", "CachedExtensionVSIXs"]);
     code_editors.extend(electron_caches(&roaming, "Cursor", &["CachedData", "CachedExtensionVSIXs"]));
@@ -158,7 +236,7 @@ fn windows_targets() -> Vec<Target> {
     let mut adobe = join(&roaming, "Adobe/Common/Media Cache Files");
     adobe.extend(join(&roaming, "Adobe/Common/Peak Files"));
 
-    vec![
+    let mut list = vec![
         Target {
             id: "user_temp",
             group: "system",
@@ -447,7 +525,50 @@ fn windows_targets() -> Vec<Target> {
             processes: &[("firefox.exe", "Firefox")],
             needs_admin: false,
         },
-    ]
+        // Ajoutés le 02.10.2026 après inventaire d'un vrai PC.
+        Target {
+            id: "electron_downloads",
+            group: "apps",
+            name: tr("Téléchargements d'Electron", "Electron downloads"),
+            detail: tr("Copies d'Electron gardées par les outils de développement, retéléchargées au besoin", "Electron copies kept by developer tools, downloaded again when needed"),
+            paths: {
+                let mut p = join(&local, "electron/Cache");
+                p.extend(join(&local, "electron-builder/Cache"));
+                p.extend(local.iter().flat_map(|l| real_subdirs(&l.join("Packages"))).map(|p| p.join("LocalCache/Local/electron/Cache")));
+                p
+            },
+            min_age: Duration::ZERO,
+            processes: &[],
+            needs_admin: false,
+        },
+        Target {
+            id: "app_logs",
+            group: "system",
+            name: tr("Vieux journaux d'applis", "Old app logs"),
+            detail: tr("Journaux de OneDrive et d'Adobe de plus de 7 jours", "OneDrive and Adobe logs older than 7 days"),
+            paths: {
+                let mut p = join(&local, "Microsoft/OneDrive/logs");
+                p.extend(join(&roaming, "Adobe/logs"));
+                p
+            },
+            min_age: Duration::from_secs(7 * 24 * 3600),
+            processes: &[],
+            needs_admin: false,
+        },
+    ];
+    // En dernier : tout ce qui n'est pas déjà dans une autre ligne.
+    let covered: Vec<PathBuf> = list.iter().flat_map(|t| t.paths.clone()).collect();
+    list.push(Target {
+        id: "other_apps",
+        group: "apps",
+        name: tr("Autres applis", "Other apps"),
+        detail: tr("Caches des applis web installées (Claude, Outlook, Riot, launchers…) : recréés à l'ouverture, tes données ne bougent pas", "Caches of installed web apps (Claude, Outlook, Riot, launchers…): rebuilt on launch, your data stays put"),
+        paths: other_app_caches(&local, &roaming, &covered),
+        min_age: Duration::ZERO,
+        processes: &[],
+        needs_admin: false,
+    });
+    list
 }
 
 fn running_process(sys: &sysinfo::System, processes: &[(&str, &str)]) -> Option<String> {
@@ -781,6 +902,43 @@ mod tests {
         }
         assert!(names.contains(&"WV2Profile_tfw/Cache".to_string()));
         assert!(!names.iter().any(|n| n.starts_with("Crashpad") || n.starts_with("Snapshots")));
+    }
+
+    #[test]
+    fn other_apps_only_pick_chromium_caches() {
+        let root = tempfile::tempdir().unwrap();
+        let local = root.path().join("Local");
+        let roaming = root.path().join("Roaming");
+        let mk = |p: &Path| std::fs::create_dir_all(p).unwrap();
+        let touch = |p: &Path| std::fs::write(p, b"x").unwrap();
+        // Une appli Electron : cache au format Chromium, plus ses vraies données à côté.
+        mk(&roaming.join("AppX/Cache/Cache_Data"));
+        touch(&roaming.join("AppX/Cache/Cache_Data/index"));
+        mk(&roaming.join("AppX/Local Storage"));
+        // Un dossier « Cache » qui n'est pas celui de Chromium : jamais touché.
+        mk(&roaming.join("AppY/Cache"));
+        touch(&roaming.join("AppY/Cache/save.dat"));
+        // Une appli WebView2, trois niveaux plus bas.
+        mk(&local.join("Vendor/Tool/EBWebView/Default/Cache"));
+        mk(&local.join("Vendor/Tool/EBWebView/Default/IndexedDB"));
+        // Le propre dossier de Kaury Clean.
+        mk(&local.join("studio.kaury.clean/EBWebView/Default/Cache"));
+        // Une appli déjà couverte par une autre ligne.
+        mk(&roaming.join("Done/Cache/Cache_Data"));
+        touch(&roaming.join("Done/Cache/Cache_Data/index"));
+
+        let covered = vec![roaming.join("Done/Cache")];
+        let found = other_app_caches(&Some(local.clone()), &Some(roaming.clone()), &covered);
+        assert!(found.contains(&roaming.join("AppX/Cache")));
+        assert!(found.contains(&roaming.join("AppX/Code Cache")));
+        assert!(found.contains(&local.join("Vendor/Tool/EBWebView/Default/Cache")));
+        assert!(!found.iter().any(|p| p.starts_with(roaming.join("AppY"))));
+        assert!(!found.iter().any(|p| p.starts_with(roaming.join("Done"))));
+        assert!(!found.iter().any(|p| p.starts_with(local.join("studio.kaury.clean"))));
+        for p in &found {
+            let last = p.file_name().unwrap().to_string_lossy().to_string();
+            assert!(["Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache", "ShaderCache", "GrShaderCache"].contains(&last.as_str()), "{}", p.display());
+        }
     }
 
     #[test]
