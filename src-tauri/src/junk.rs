@@ -165,6 +165,26 @@ fn find_named(dir: &Path, name: &str, depth: u32, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// Jeux Unreal Engine (Fortnite, VALORANT, Epic…) : reconnus à `Saved/Config`. Seulement leurs
+/// journaux, rapports de plantage et pages web en cache ; jamais SaveGames, Cloud ni Demos.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn unreal_leftovers(local: &Option<PathBuf>) -> Vec<PathBuf> {
+    let mut out = vec![];
+    for game in local.iter().flat_map(|l| real_subdirs(l)) {
+        let saved = game.join("Saved");
+        if !saved.join("Config").is_dir() {
+            continue;
+        }
+        for sub in real_subdirs(&saved) {
+            let name = sub.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+            if name == "logs" || name == "crashes" || name == "webcache" || name.starts_with("webcache_") {
+                out.push(sub);
+            }
+        }
+    }
+    out
+}
+
 fn firefox_caches(local: &Option<PathBuf>) -> Vec<PathBuf> {
     let Some(local) = local else { return vec![] };
     let Ok(entries) = std::fs::read_dir(local.join("Mozilla/Firefox/Profiles")) else { return vec![] };
@@ -556,6 +576,31 @@ fn windows_targets() -> Vec<Target> {
             processes: &[],
             needs_admin: false,
         },
+        Target {
+            id: "adobe_temp",
+            group: "apps",
+            name: tr("Restes d'installation Adobe", "Adobe installation leftovers"),
+            detail: tr("Fichiers extraits par l'installeur de Creative Cloud dans C:\\adobeTemp, plus vieux que 7 jours", "Files unpacked by the Creative Cloud installer in C:\\adobeTemp, older than 7 days"),
+            paths: vec![system_drive_dir("adobeTemp")],
+            min_age: Duration::from_secs(7 * 24 * 3600),
+            processes: &[("Creative Cloud.exe", "Creative Cloud")],
+            needs_admin: true,
+        },
+        Target {
+            id: "game_logs",
+            group: "apps",
+            name: tr("Journaux des jeux", "Game logs"),
+            detail: tr("Journaux, rapports de plantage et pages web en cache des jeux Unreal (Fortnite, VALORANT…) : tes sauvegardes ne bougent pas", "Logs, crash reports and cached web pages of Unreal games (Fortnite, VALORANT…): your saves stay put"),
+            paths: {
+                let mut p = unreal_leftovers(&local);
+                p.extend(join(&roaming, ".minecraft/webcache2"));
+                p.extend(chromium_caches(local.as_ref().map(|l| l.join("Overwolf/CefBrowserCache"))));
+                p
+            },
+            min_age: DAY,
+            processes: &[],
+            needs_admin: false,
+        },
     ];
     // En dernier : tout ce qui n'est pas déjà dans une autre ligne.
     let covered: Vec<PathBuf> = list.iter().flat_map(|t| t.paths.clone()).collect();
@@ -647,6 +692,13 @@ const PROGRAM_DATA_TARGETS: &[&str] = &[
     "NVIDIA Corporation/NVIDIA app/UpdateFramework/ota-artifacts",
 ];
 
+/// Dossiers temporaires laissés à la racine du disque système par des installeurs.
+const SYSTEM_DRIVE_TARGETS: &[&str] = &["adobeTemp"];
+
+fn system_drive_dir(rel: &str) -> PathBuf {
+    PathBuf::from(format!(r"{}\{rel}", garde::system_drive()))
+}
+
 fn program_data() -> PathBuf {
     PathBuf::from(format!(r"{}\ProgramData", garde::system_drive()))
 }
@@ -655,6 +707,7 @@ fn is_windows_target(path: &Path) -> bool {
     let (windir, program_data) = (garde::windows_dir(), program_data());
     WINDOWS_TARGETS.iter().any(|rel| windir.join(rel) == path)
         || PROGRAM_DATA_TARGETS.iter().any(|rel| program_data.join(rel) == path)
+        || SYSTEM_DRIVE_TARGETS.iter().any(|rel| system_drive_dir(rel) == path)
 }
 
 pub fn clean(ids: &[String], progress: &dyn Fn(&str)) -> CleanReport {
@@ -940,6 +993,20 @@ mod tests {
             let last = p.file_name().unwrap().to_string_lossy().to_string();
             assert!(["Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache", "ShaderCache", "GrShaderCache"].contains(&last.as_str()), "{}", p.display());
         }
+    }
+
+    #[test]
+    fn unreal_leftovers_never_touch_saves() {
+        let root = tempfile::tempdir().unwrap();
+        let local = root.path().to_path_buf();
+        for d in ["Game/Saved/Config", "Game/Saved/Logs", "Game/Saved/Crashes", "Game/Saved/webcache_4430", "Game/Saved/SaveGames", "Game/Saved/Cloud", "NotAGame/Saved/Logs"] {
+            std::fs::create_dir_all(local.join(d)).unwrap();
+        }
+        let found = unreal_leftovers(&Some(local.clone()));
+        assert!(found.contains(&local.join("Game/Saved/Logs")));
+        assert!(found.contains(&local.join("Game/Saved/webcache_4430")));
+        assert!(!found.iter().any(|p| p.ends_with("SaveGames") || p.ends_with("Cloud") || p.ends_with("Config")));
+        assert!(!found.iter().any(|p| p.starts_with(local.join("NotAGame"))));
     }
 
     #[test]
