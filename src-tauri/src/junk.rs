@@ -87,6 +87,42 @@ fn store_app(local: &Option<PathBuf>, package: &str, rel: &str) -> Option<PathBu
     local.as_ref().map(|l| l.join("Packages").join(package).join(rel))
 }
 
+/// Dossiers où Spotify range les titres téléchargés pour l'écoute hors connexion, lus dans ses
+/// fichiers `prefs` (`storage.location`, réglé par l'utilisateur, et `storage.last-location`).
+fn spotify_offline_dirs(prefs: &[PathBuf]) -> Vec<PathBuf> {
+    let mut out = vec![];
+    for file in prefs {
+        let Ok(text) = std::fs::read_to_string(file) else { continue };
+        for line in text.lines() {
+            let Some((key, value)) = line.split_once('=') else { continue };
+            if key.trim() == "storage.location" || key.trim() == "storage.last-location" {
+                let value = value.trim().trim_matches('"').replace("\\\\", "\\");
+                if !value.is_empty() {
+                    out.push(PathBuf::from(value));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Retire toute cible Spotify qui contient les titres téléchargés ou se trouve dedans :
+/// un abonné ne doit jamais perdre sa musique hors connexion, même s'il a déplacé le dossier.
+fn without_spotify_offline(paths: Vec<PathBuf>, offline: &[PathBuf]) -> Vec<PathBuf> {
+    let norm = |p: &Path| {
+        let s = p.to_string_lossy().replace('\\', "/").to_lowercase();
+        format!("{}/", s.trim_end_matches('/'))
+    };
+    let offline: Vec<String> = offline.iter().map(|o| norm(o)).collect();
+    paths
+        .into_iter()
+        .filter(|p| {
+            let p = norm(p);
+            !offline.iter().any(|o| p.starts_with(o.as_str()) || o.starts_with(p.as_str()))
+        })
+        .collect()
+}
+
 /// Sous-dossiers de `dir` dont le nom commence par `prefix` (« webcache_4430 »...).
 fn prefixed(dir: Option<PathBuf>, prefix: &str) -> Vec<PathBuf> {
     let Some(dir) = dir else { return vec![] };
@@ -224,14 +260,18 @@ fn windows_targets() -> Vec<Target> {
     shaders.extend(join(&local, "NVIDIA/GLCache"));
     shaders.extend(join(&local, "AMD/DxCache"));
 
-    let mut spotify = join(&local, "Spotify/Storage");
-    spotify.extend(join(&local, "Spotify/Data"));
-    // La version du Microsoft Store range tout ailleurs.
+    // Version classique : Spotify/Storage et Spotify/Data ne sont JAMAIS vidés, c'est là que
+    // Spotify range par défaut les titres téléchargés pour l'écoute hors connexion.
+    let mut spotify: Vec<PathBuf> =
+        ["Browser/Cache", "Browser/Code Cache", "Browser/GPUCache"].iter().flat_map(|b| join(&local, &format!("Spotify/{b}"))).collect();
+    // La version du Microsoft Store range ses téléchargements dans LocalState, jamais touché.
     let spotify_store = store_app(&local, "SpotifyAB.SpotifyMusic_zpdnekdrzrea0", "LocalCache/Spotify");
     spotify.extend(spotify_store.iter().map(|s| s.join("Data")));
     spotify.extend(spotify_store.iter().flat_map(|s| ["Browser/Cache", "Browser/Code Cache", "Browser/GPUCache"].map(|b| s.join(b))));
-    spotify.extend(["Browser/Cache", "Browser/Code Cache", "Browser/GPUCache"].iter().flat_map(|b| join(&local, &format!("Spotify/{b}"))));
     spotify.extend(chromium_caches(spotify_store));
+    let mut spotify_prefs = join(&roaming, "Spotify/prefs");
+    spotify_prefs.extend(store_app(&local, "SpotifyAB.SpotifyMusic_zpdnekdrzrea0", "LocalState/Spotify/prefs"));
+    let spotify = without_spotify_offline(spotify, &spotify_offline_dirs(&spotify_prefs));
 
     let mut dev_python = join(&local, "uv/cache");
     dev_python.extend(join(&local, "pip/cache"));
@@ -332,7 +372,7 @@ fn windows_targets() -> Vec<Target> {
             id: "spotify",
             group: "apps",
             name: "Spotify",
-            detail: tr("Musique mise en cache : elle se retélécharge quand tu l'écoutes", "Cached music: it downloads again when you play it"),
+            detail: tr("Cache de l'appli (jamais tes titres téléchargés)", "App cache (never your downloaded tracks)"),
             paths: spotify,
             min_age: Duration::ZERO,
             processes: &[("Spotify.exe", "Spotify")],
@@ -807,7 +847,7 @@ mod recycle_bin {
 /// avant d'être publiée.
 #[cfg(target_os = "macos")]
 mod mac {
-    use super::{Target, DAY};
+    use super::{spotify_offline_dirs, without_spotify_offline, Target, DAY};
     use crate::langue::tr;
     use std::path::PathBuf;
     use std::time::Duration;
@@ -872,7 +912,8 @@ mod mac {
             t("slack", "apps", "Slack", tr("Cache de l'appli", "App cache"),
               electron(&support, "Slack", &[]), Duration::ZERO, &[("Slack", "Slack")]),
             t("spotify", "apps", "Spotify", tr("Morceaux en cache (pas tes téléchargements)", "Cached tracks (not your downloads)"),
-              under(&caches, &["com.spotify.client"]), Duration::ZERO, &[("Spotify", "Spotify")]),
+              without_spotify_offline(under(&caches, &["com.spotify.client"]), &spotify_offline_dirs(&under(&support, &["Spotify/prefs"]))),
+              Duration::ZERO, &[("Spotify", "Spotify")]),
             t("adobe", "apps", "Adobe", tr("Caches des applis Adobe", "Adobe app caches"),
               { let mut a = under(&caches, &["Adobe"]); a.extend(under(&support, &["Adobe/Common/Media Cache Files", "Adobe/Common/Peak Files"])); a },
               Duration::ZERO, &[("Adobe Premiere Pro", "Premiere Pro"), ("After Effects", "After Effects")]),
@@ -936,8 +977,34 @@ mod tests {
                 assert!(!FORBIDDEN.iter().any(|bad| p.contains(bad)), "{} vise {p}", t.id);
                 let last = p.trim_end_matches('/').rsplit('/').next().unwrap_or("").to_string();
                 assert!(!["default", "user data", "ebwebview", "spotify"].contains(&last.as_str()), "{} vise {p}", t.id);
+                // Titres Spotify téléchargés pour l'écoute hors connexion.
+                assert!(!p.contains("spotify/storage"), "{} vise {p}", t.id);
+                assert!(!p.ends_with("/spotify/data") || p.contains("localcache/spotify/data"), "{} vise {p}", t.id);
             }
         }
+    }
+
+    #[test]
+    fn spotify_offline_tracks_are_never_targeted() {
+        let root = tempfile::tempdir().unwrap();
+        let offline = root.path().join("Musique hors ligne");
+        let cache = root.path().join("Spotify");
+        // Format réel du fichier prefs : chemin entre guillemets, barres obliques inverses doublées.
+        let escaped = |p: &Path| p.to_string_lossy().replace('\\', "\\\\");
+        std::fs::write(
+            root.path().join("prefs"),
+            format!("app.autostart-configured=true\nstorage.location=\"{}\"\nstorage.last-location=\"{}\"\n", escaped(&offline), escaped(&cache.join("Data"))),
+        )
+        .unwrap();
+        let found = spotify_offline_dirs(&[root.path().join("prefs"), root.path().join("absent")]);
+        assert_eq!(found, vec![offline.clone(), cache.join("Data")]);
+
+        let kept = without_spotify_offline(
+            vec![cache.join("Browser/Cache"), cache.join("Data"), cache.join("Data/sous-dossier"), root.path().to_path_buf(), offline.join("x")],
+            &found,
+        );
+        // Dans le dossier hors ligne, ou le contenant tout entier : refusé. Le cache du lecteur passe.
+        assert_eq!(kept, vec![cache.join("Browser/Cache")]);
     }
 
     #[test]
