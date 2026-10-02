@@ -1,22 +1,24 @@
 <p align="center">
-  <img src="design/behance/01-couverture.png" alt="Kaury Clean : ton PC, tout propre." width="100%">
+  <img src="design/social/couverture-fr.png" alt="Kaury Clean : ton PC, tout propre." width="100%">
 </p>
 
 <p align="center">
   <a href="https://github.com/theoblondel/kaury-clean/releases/latest"><img src="https://img.shields.io/github/v/release/theoblondel/kaury-clean?style=for-the-badge&color=F56E2E&labelColor=1C1A1A&label=version" alt="Dernière version"></a>
   <a href="https://github.com/theoblondel/kaury-clean/releases"><img src="https://img.shields.io/github/downloads/theoblondel/kaury-clean/total?style=for-the-badge&color=F1E8CB&labelColor=1C1A1A&label=t%C3%A9l%C3%A9chargements" alt="Téléchargements"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-F1E8CB?style=for-the-badge&labelColor=1C1A1A" alt="Windows 10 et 11">
+  <img src="https://img.shields.io/badge/macOS-en%20test-F1E8CB?style=for-the-badge&labelColor=1C1A1A" alt="macOS en test">
   <a href="https://github.com/theoblondel/kaury-clean/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/theoblondel/kaury-clean/build.yml?branch=main&style=for-the-badge&labelColor=1C1A1A&label=build" alt="Compilation"></a>
 </p>
 
 <p align="center">
-  <b>Un nettoyeur de PC Windows simple, beau et honnête.</b><br>
+  <b>Un nettoyeur de PC simple, beau et honnête, pour Windows (et Mac, en test).</b><br>
   Il ne touche qu'à ce qui s'accumule pour rien, et te montre tout avant.<br>
   Fait en Rust avec Tauri : 1,6 Mo, sans pub, sans compte, sans télémétrie.
 </p>
 
 <p align="center">
   <a href="https://github.com/theoblondel/kaury-clean/releases/latest"><img src="https://img.shields.io/badge/T%C3%A9l%C3%A9charger%20pour%20Windows-F56E2E?style=for-the-badge&logo=windows&logoColor=1C1A1A" alt="Télécharger pour Windows" height="42"></a>
+  <a href="https://clean.kaury.studio/"><img src="https://img.shields.io/badge/clean.kaury.studio-1C1A1A?style=for-the-badge" alt="Site : clean.kaury.studio" height="42"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> · <b>Français</b></p>
@@ -46,8 +48,8 @@ Un seul bouton. Kaury Clean passe en revue les fichiers inutiles, les applis au 
 
 | | Section | Ce qu'elle fait |
 | --- | --- | --- |
-| 🧹 | **Nettoyage** | Fichiers système (temporaires, Windows Update, rapports d'erreur, cache graphique), caches d'applis (Adobe, Spotify, Discord, Slack, Teams, WhatsApp, Steam, Epic Games, VS Code, Cursor, npm, Yarn, pip, uv), navigateurs (Chrome, Edge, Brave, Firefox, Opera, Vivaldi) et corbeille. |
-| ⚡ | **Performances** | **Mémoire vive** : les applis qui remplissent la RAM, fermées proprement ou de force. **Démarrage** : active ou désactive les applis lancées avec Windows. |
+| 🧹 | **Nettoyage** | Fichiers système (temporaires, Windows Update, rapports d'erreur, cache graphique), caches d'applis (Adobe, Spotify, Discord, Slack, Teams, WhatsApp, Steam, Epic Games, VS Code, Cursor, npm, Yarn, pip, uv), navigateurs (Chrome, Edge, Brave, Firefox, Opera, Vivaldi) et corbeille. **Autres applis** : les caches des applis web installées (Claude, Outlook, Riot, launchers…) sont détectés tout seuls. |
+| ⚡ | **Performances** | **Mémoire vive** : les applis qui remplissent la RAM, fermées proprement ou de force. **Démarrage** : active ou désactive les applis lancées avec Windows. **Astuces** : 17 réglages de Windows, chacun réversible à l'identique (valeur d'origine sauvegardée). |
 | 🧩 | **Applications** | Toutes les applis installées avec leur taille, recherche et tri. Lance le désinstalleur officiel. |
 | 📁 | **Mes fichiers** | **Place du disque** (la carte de ce qui prend de la place, en lecture seule), **gros fichiers**, **doublons** (comparés par leur contenu), **vieux téléchargements**, et **rangement** de Téléchargements ou du Bureau par type, annulable. |
 | 🔧 | **Réparation** | Point de restauration, réparation de Windows (DISM + SFC), anciennes versions de Windows, optimisation et vérification du disque, veille prolongée, cache DNS, Explorateur, icônes, Microsoft Store. |
@@ -73,6 +75,7 @@ Un seul bouton. Kaury Clean passe en revue les fichiers inutiles, les applis au 
 - **Pas de faux « nettoyage de RAM ».** Windows gère déjà la mémoire : vider la RAM ne fait que la remplir à nouveau en ralentissant le PC. Kaury Clean montre les applis gourmandes et te laisse les fermer.
 - **Pas de nettoyage du registre.** Il n'accélère rien et peut casser Windows.
 - **OneDrive respecté.** Les fichiers restés dans le cloud ne sont jamais lus, donc jamais téléchargés.
+- **Que des caches, jamais tes données.** Chaque dossier ajouté est inspecté avant. Tes connexions, tes messages, les données des sites et ta musique Spotify téléchargée pour l'écoute hors connexion ne sont jamais touchés.
 - **Les outils de Windows.** Les réparations passent par DISM, SFC, chkdsk et les points de restauration, pas par des recettes maison.
 
 <details>
@@ -96,6 +99,8 @@ Un seul bouton. Kaury Clean passe en revue les fichiers inutiles, les applis au 
 1. Télécharge `Kaury.Clean_…_x64-setup.exe` depuis la **[dernière release](https://github.com/theoblondel/kaury-clean/releases/latest)**.
 2. Ouvre-le. Si Windows affiche « Windows a protégé votre ordinateur », clique sur **Informations complémentaires** puis **Exécuter quand même** : l'appli n'est pas encore signée avec un certificat.
 3. Kaury Clean s'installe dans Programmes, avec un raccourci dans le menu Démarrer (dossier Kaury Studio) et sur le Bureau. Il se désinstalle depuis **Paramètres > Applications**.
+
+**Mac (en test) :** ouvre le Terminal et colle `curl -fsSL https://clean.kaury.studio/installer-mac.sh | bash`, ou télécharge le `.dmg` de la release. Sur Mac : nettoyage des caches, mémoire, gros fichiers et doublons.
 
 **Mises à jour :** à chaque ouverture, Kaury Clean vérifie s'il existe une nouvelle version et propose de l'installer en un clic. L'installeur téléchargé par l'appli remplace l'ancienne version et garde tes réglages.
 
@@ -131,18 +136,20 @@ src-tauri/src/
   langue.rs           français ou anglais, choisi par l'interface
   garde.rs            garde-fous : vrais chemins, règles en administrateur, outils par chemin complet
   space.rs            place du disque (lecture seule)
+  tweaks.rs           astuces : réglages de Windows réversibles
 design/
-  logo.svg, k.svg     icône de l'appli et monogramme Kaury
-  screens/            captures de l'appli
+  logo.svg, k.svg     icône de l'appli (le balai) et monogramme Kaury
+  screens/            captures de l'appli (captures-site.mjs les refait depuis le mode démo)
+  social/             couvertures du README et image de partage (couverture.mjs)
   behance/            visuels de présentation (FR, et EN dans behance/en)
 ```
 
 ### Publier une nouvelle version
 
 1. Change le numéro de version dans `package.json`, `src-tauri/Cargo.toml` et `src-tauri/tauri.conf.json`, puis pousse sur `main`.
-2. Sur GitHub : **Releases** > **Draft a new release** > **Choose a tag**, tape `v0.8.0` et choisis **Create new tag**. Clique sur **Publish release**.
+2. Sur GitHub : **Releases** > **Draft a new release** > **Choose a tag**, tape `v0.9.4` et choisis **Create new tag**. Clique sur **Publish release**.
 3. GitHub Actions compile l'installeur et l'ajoute à la release (environ 5 minutes).
-4. Une fois le build terminé, signe l'installeur depuis ton PC : `npm run signer`. Le fichier `.sig` est ajouté à la release, et les applis déjà installées proposent alors la mise à jour à leur prochaine ouverture. Sans cette étape, elles ne la proposent pas.
+4. Une fois le build terminé, signe les installeurs depuis ton PC : `npm run signer v0.9.4`. Le fichier `.sig` est ajouté à la release, et les applis déjà installées proposent alors la mise à jour à leur prochaine ouverture. Sans cette étape, elles ne la proposent pas.
 
 La clé de signature se crée une seule fois (`npm run cle`) et vit dans `%USERPROFILE%\.kaury-clean\`, jamais dans ce repo. Garde-en une sauvegarde : sans elle, les versions installées n'accepteront plus aucune mise à jour.
 
