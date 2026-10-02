@@ -9,6 +9,7 @@ mod memory;
 mod organize;
 mod space;
 mod startup;
+mod tweaks;
 mod uninstall;
 mod update;
 
@@ -173,6 +174,18 @@ fn list_startup_apps() -> Vec<startup::StartupApp> {
 #[tauri::command]
 fn set_startup_app(id: String, enabled: bool) -> Result<(), String> {
     startup::set(&id, enabled)
+}
+
+// ---------- Astuces ----------
+
+#[tauri::command]
+async fn list_tweaks() -> Result<Vec<tweaks::TweakInfo>, String> {
+    blocking(tweaks::list).await
+}
+
+#[tauri::command]
+async fn set_tweak(id: String, enabled: bool) -> Result<(), String> {
+    blocking(move || tweaks::set(&id, enabled)).await?
 }
 
 // ---------- Ranger mes fichiers ----------
@@ -353,6 +366,8 @@ pub fn run() {
             open_folder,
             list_startup_apps,
             set_startup_app,
+            list_tweaks,
+            set_tweak,
         ])
         .run(tauri::generate_context!())
         .expect("impossible de lancer Kaury Clean");

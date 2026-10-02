@@ -112,7 +112,7 @@ paintIcons();
 const SECTIONS = {
   home: [["home", tr("Entretien intelligent", "Smart care")]],
   clean: [["system", tr("Fichiers système", "System files")], ["apps", "Applications"], ["browsers", tr("Navigateurs", "Browsers")], ["trash", tr("Corbeille", "Recycle Bin")]],
-  perf: [["memory", tr("Mémoire vive", "Memory")], ["startup", tr("Démarrage", "Startup")]],
+  perf: [["memory", tr("Mémoire vive", "Memory")], ["startup", tr("Démarrage", "Startup")], ["tips", tr("Astuces", "Tips")]],
   apps: [["uninstall", tr("Désinstaller", "Uninstall")]],
   files: [["space", tr("Place du disque", "Disk map")], ["large", tr("Gros fichiers", "Large files")], ["dupes", tr("Doublons", "Duplicates")], ["olddl", tr("Vieux téléchargements", "Old downloads")], ["organize", tr("Ranger", "Tidy up")]],
   repair: [["maintenance", "Maintenance"]],
@@ -120,7 +120,7 @@ const SECTIONS = {
 };
 // Sur Mac : pas encore de démarrage, de désinstallation ni de réparation (prévus pour une version suivante).
 if (MAC) {
-  SECTIONS.perf = SECTIONS.perf.filter(([v]) => v !== "startup");
+  SECTIONS.perf = SECTIONS.perf.filter(([v]) => v !== "startup" && v !== "tips");
   delete SECTIONS.apps;
   delete SECTIONS.repair;
 }
@@ -147,6 +147,7 @@ function show(view) {
   $$("[data-tab]", bar).forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
   $("main").scrollTop = 0;
   if (view === "startup" && !startupLoaded) loadStartup();
+  if (view === "tips" && !tipsLoaded) loadTips();
   viewLoaders[view]?.();
 }
 // Les modules de modules.js s'inscrivent ici pour se charger à la première ouverture.
@@ -610,6 +611,81 @@ async function loadStartup() {
   }));
 }
 
+// ---------- Astuces ----------
+// De petits réglages de Windows, chacun réversible : le moteur note la valeur d'origine avant d'écrire.
+const TIP_GROUPS = [
+  ["speed", tr("Plus rapide", "Faster")],
+  ["games", tr("Jeux", "Games")],
+  ["calm", tr("Plus calme", "Quieter")],
+  ["handy", tr("Pratique", "Handy")],
+  ["privacy", tr("Vie privée", "Privacy")],
+];
+let tipsLoaded = false;
+const tipsPending = { explorer: false, signout: false };
+async function loadTips() {
+  tipsLoaded = true;
+  const box = $("#tipsBody");
+  box.innerHTML = `<div class="empty"><div class="spinner"></div></div>`;
+  let tips;
+  try {
+    tips = await invoke("list_tweaks");
+  } catch (e) {
+    box.innerHTML = `<div class="empty">${tr("Impossible de lire les réglages : ", "Couldn't read the settings: ")}${esc(e)}</div>`;
+    return;
+  }
+  const locked = (t) => t.needs_admin && !elevated;
+  const when = (t) => t.after === "signout" ? tr("à la prochaine session", "next sign-in") : t.after === "explorer" ? tr("après redémarrage de l'Explorateur", "after restarting Explorer") : "";
+  box.innerHTML = `${tips.some(locked) ? `<div class="admin-note left above">${tr("Certains réglages se modifient avec les droits administrateur.", "Some settings can only be changed with admin rights.")}<button class="link" data-admin>${tr("Relancer en administrateur", "Relaunch as administrator")}</button></div>` : ""}
+    <div class="tips-pending" id="tipsPending" hidden></div>
+    ${TIP_GROUPS.map(([g, label]) => {
+      const rows = tips.filter((t) => t.group === g);
+      if (!rows.length) return "";
+      return `<div class="list tips"><div class="group-title"><b>${esc(label)}</b><span>${rows.filter((t) => t.enabled).length} / ${rows.length}</span></div>${rows.map((t) => `
+        <div class="item"><span class="ic" data-icon="${g === "games" ? "bolt" : g === "privacy" ? "logo" : "sparkle"}"></span>
+          <span class="txt"><div class="n">${esc(t.name)}${t.needs_admin ? `<span class="chip">admin</span>` : ""}${when(t) ? `<span class="chip">${esc(when(t))}</span>` : ""}</div>
+          <div class="d">${esc(t.detail)}</div></span>
+          <button class="toggle" role="switch" data-id="${esc(t.id)}" data-after="${esc(t.after)}" aria-label="${esc(t.name)}" aria-checked="${t.enabled}" ${locked(t) ? "disabled" : ""}></button></div>`).join("")}</div>`;
+    }).join("")}
+    <p class="tips-foot">${tr("Chaque réglage se désactive d'un clic : Kaury Clean remet exactement la valeur qu'il y avait avant. Aucun service de Windows n'est coupé, rien n'est supprimé.", "Every setting turns off in one click: Kaury Clean puts back exactly the value that was there before. No Windows service is turned off, nothing is deleted.")}</p>`;
+  paintIcons(box);
+  $("[data-admin]", box)?.addEventListener("click", relaunchAsAdmin);
+  $$(".toggle", box).forEach((t) => t.addEventListener("click", async () => {
+    const enabled = t.getAttribute("aria-checked") !== "true";
+    t.disabled = true;
+    try {
+      await invoke("set_tweak", { id: t.dataset.id, enabled });
+      t.setAttribute("aria-checked", String(enabled));
+      const list = t.closest(".list");
+      $(".group-title span", list).textContent = `${$$('[aria-checked="true"]', list).length} / ${$$(".toggle", list).length}`;
+      if (t.dataset.after) tipsPending[t.dataset.after] = true;
+      renderTipsPending();
+    } catch (e) {
+      toast(String(e));
+    }
+    t.disabled = false;
+  }));
+}
+function renderTipsPending() {
+  const bar = $("#tipsPending");
+  if (!bar) return;
+  const { explorer, signout } = tipsPending;
+  bar.hidden = !explorer && !signout;
+  bar.innerHTML = `${explorer ? `<span>${tr("Certains changements s'appliquent après le redémarrage de l'Explorateur.", "Some changes apply after restarting Explorer.")}</span><button class="cta small" data-restart>${tr("Redémarrer l'Explorateur", "Restart Explorer")}</button>` : ""}
+    ${signout ? `<span>${tr("D'autres s'appliquent à ta prochaine session (déconnexion ou redémarrage du PC).", "Others apply at your next sign-in (sign out or restart the PC).")}</span>` : ""}`;
+  $("[data-restart]", bar)?.addEventListener("click", async (e) => {
+    e.currentTarget.disabled = true;
+    try {
+      await invoke("run_maintenance", { id: "restart_explorer" });
+      tipsPending.explorer = false;
+      renderTipsPending();
+      toast(tr("Explorateur redémarré.", "Explorer restarted."));
+    } catch (err) {
+      toast(String(err));
+      e.currentTarget.disabled = false;
+    }
+  });
+}
+
 // ---------- Droits administrateur ----------
 async function relaunchAsAdmin() {
   try {
@@ -754,6 +830,19 @@ function demoInvoke(cmd, args) {
       { id: "hklm|SecurityHealth", name: "SecurityHealth", command: "%windir%\\system32\\SecurityHealthSystray.exe", scope: "machine", enabled: true },
     ]);
     case "set_startup_app": return wait(150, null);
+    case "list_tweaks": return wait(200, [
+      { id: "power_high", group: "speed", name: tr("Mode d’alimentation « Performances élevées »", "\"High performance\" power plan"), detail: tr("Le processeur ne ralentit plus pour économiser l’énergie : tout répond plus vite. Idéal sur un PC fixe ; sur un portable, la batterie dure moins longtemps.", "The processor no longer slows down to save power: everything responds faster. Ideal on a desktop PC; on a laptop, the battery runs out sooner."), needs_admin: false, after: "", enabled: false },
+      { id: "menu_delay", group: "speed", name: tr("Menus sans délai", "Menus without delay"), detail: tr("Les sous-menus (Ouvrir avec, Envoyer vers…) s’ouvrent tout de suite au lieu d’attendre 0,4 seconde.", "Submenus (Open with, Send to…) open right away instead of waiting 0.4 seconds."), needs_admin: false, after: "signout", enabled: false },
+      { id: "animations", group: "speed", name: tr("Couper les animations des fenêtres", "Turn off window animations"), detail: tr("Les fenêtres s’ouvrent et se réduisent d’un coup, sans effet de zoom. Le PC paraît nettement plus vif, surtout s’il est ancien.", "Windows open and minimize instantly, with no zoom effect. The PC feels much snappier, especially an older one."), needs_admin: false, after: "signout", enabled: false },
+      { id: "this_pc", group: "speed", name: tr("L’Explorateur s’ouvre sur « Ce PC »", "Explorer opens on \"This PC\""), detail: tr("Au lieu de l’Accueil, qui charge tes fichiers récents et ceux du cloud : la fenêtre s’affiche plus vite.", "Instead of Home, which loads your recent and cloud files: the window shows up faster."), needs_admin: false, after: "", enabled: true },
+      { id: "start_web", group: "speed", name: tr("Recherche Windows sans Bing", "Windows search without Bing"), detail: tr("La recherche du menu Démarrer ne cherche plus sur internet : elle trouve tes applis et fichiers plus vite, sans résultats web.", "Start menu search no longer looks on the internet: it finds your apps and files faster, without web results."), needs_admin: true, after: "explorer", enabled: false },
+      { id: "game_dvr", group: "games", name: tr("Couper l’enregistrement en arrière-plan", "Turn off background recording"), detail: tr("La Xbox Game Bar n’enregistre plus tes parties en continu : quelques images par seconde en plus dans les jeux.", "The Xbox Game Bar no longer records your games continuously: a few more frames per second in games."), needs_admin: false, after: "", enabled: false },
+      { id: "suggestions", group: "calm", name: tr("Plus de suggestions ni de pubs de Windows", "No more Windows suggestions or ads"), detail: tr("Coupe les « astuces », les applis suggérées, les écrans de bienvenue après les mises à jour et les rappels pour « terminer la configuration ».", "Turns off \"tips\", suggested apps, welcome screens after updates and reminders to \"finish setting up\"."), needs_admin: false, after: "", enabled: false },
+      { id: "classic_menu", group: "handy", name: tr("Menu clic droit complet", "Full right-click menu"), detail: tr("Le clic droit affiche directement toutes les options, sans passer par « Afficher plus d’options ».", "Right-click shows every option right away, without going through \"Show more options\"."), needs_admin: false, after: "explorer", enabled: false },
+      { id: "file_ext", group: "handy", name: tr("Afficher les extensions des fichiers", "Show file extensions"), detail: tr("Tu vois « facture.pdf.exe » au lieu de « facture.pdf » : le piège classique des virus ne marche plus.", "You see \"invoice.pdf.exe\" instead of \"invoice.pdf\": the classic virus trick no longer works."), needs_admin: false, after: "", enabled: true },
+      { id: "ad_id", group: "privacy", name: tr("Pas d’identifiant publicitaire", "No advertising ID"), detail: tr("Les applis ne peuvent plus te suivre d’une appli à l’autre pour te montrer des pubs ciblées.", "Apps can no longer track you from one app to another to show targeted ads."), needs_admin: false, after: "", enabled: false },
+    ]);
+    case "set_tweak": return wait(150, null);
     case "cancel_search": return wait(10, null);
     case "find_old_downloads": return wait(900, [
       f("C:\\Users\\Theo\\Downloads\\Windows11_23H2.iso", 6.2 * GB, 400),
