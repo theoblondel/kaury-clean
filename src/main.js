@@ -14,7 +14,17 @@ const LANG = (() => {
   return /^fr\b/i.test(navigator.language || "") ? "fr" : "en";
 })();
 const EN = LANG === "en";
-const tr = (fr, en) => (EN ? en : fr);
+// macOS : le même code, avec les mots du Mac, et sans les sections qui n'existent que sous Windows.
+// Détecté dès le chargement (avant les textes fixes) ; app_info le confirme côté moteur.
+const MAC = /Mac/i.test(navigator.platform || navigator.userAgent || "");
+const MAC_WORDS = [
+  [/\bRecycle Bin\b/g, "Trash"], [/\bl'Explorateur\b/g, "le Finder"], [/\bExplorer\b/g, "Finder"],
+  [/\bTon PC\b/g, "Ton Mac"], [/\bton PC\b/g, "ton Mac"], [/\bYour PC\b/g, "Your Mac"], [/\byour PC\b/g, "your Mac"],
+  [/\bdu PC\b/g, "du Mac"], [/\bthe PC\b/g, "the Mac"], [/\bWindows\b/g, "macOS"],
+  [/Performances et démarrage/g, "Performances et mémoire"], [/Performance and startup/g, "Performance and memory"],
+];
+const macify = (s) => (MAC && typeof s === "string" ? MAC_WORDS.reduce((t, [re, w]) => t.replace(re, w), s) : s);
+const tr = (fr, en) => macify(EN ? en : fr);
 const LOCALE = EN ? "en-US" : "fr-CH";
 const num = (n) => n.toLocaleString(LOCALE);
 document.documentElement.lang = LANG;
@@ -102,12 +112,18 @@ paintIcons();
 const SECTIONS = {
   home: [["home", tr("Entretien intelligent", "Smart care")]],
   clean: [["system", tr("Fichiers système", "System files")], ["apps", "Applications"], ["browsers", tr("Navigateurs", "Browsers")], ["trash", tr("Corbeille", "Recycle Bin")]],
-  perf: [["memory", tr("Mémoire vive", "Memory")], ["startup", tr("Démarrage", "Startup")]],
+  perf: [["memory", tr("Mémoire vive", "Memory")], ["startup", tr("Démarrage", "Startup")], ["tips", tr("Astuces", "Tips")]],
   apps: [["uninstall", tr("Désinstaller", "Uninstall")]],
   files: [["space", tr("Place du disque", "Disk map")], ["large", tr("Gros fichiers", "Large files")], ["dupes", tr("Doublons", "Duplicates")], ["olddl", tr("Vieux téléchargements", "Old downloads")], ["organize", tr("Ranger", "Tidy up")]],
   repair: [["maintenance", "Maintenance"]],
   about: [["about", tr("À propos", "About")]],
 };
+// Sur Mac : pas encore de démarrage, de désinstallation ni de réparation (prévus pour une version suivante).
+if (MAC) {
+  SECTIONS.perf = SECTIONS.perf.filter(([v]) => v !== "startup" && v !== "tips");
+  delete SECTIONS.apps;
+  delete SECTIONS.repair;
+}
 const lastTab = {};
 const sectionOf = (view) => Object.keys(SECTIONS).find((s) => SECTIONS[s].some(([v]) => v === view));
 
@@ -131,6 +147,7 @@ function show(view) {
   $$("[data-tab]", bar).forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
   $("main").scrollTop = 0;
   if (view === "startup" && !startupLoaded) loadStartup();
+  if (view === "tips" && !tipsLoaded) loadTips();
   viewLoaders[view]?.();
 }
 // Les modules de modules.js s'inscrivent ici pour se charger à la première ouverture.
@@ -222,8 +239,8 @@ async function runCare() {
     const [j, mem, startup, installed, oldFiles] = await Promise.all([
       invoke("scan_junk"),
       soft(invoke("memory_status")),
-      soft(invoke("list_startup_apps")),
-      soft(invoke("list_installed_apps")),
+      MAC ? null : soft(invoke("list_startup_apps")),
+      MAC ? null : soft(invoke("list_installed_apps")),
       soft(invoke("find_old_downloads", { minDays: 180 })),
     ]);
     junk = j;
@@ -280,13 +297,18 @@ function renderBento() {
 
   const cleanExtra = done ? "" : `
     ${trash && trash.bytes > 0 ? `<label class="mini-check"><input type="checkbox" id="careTrash" ${care.includeTrash ? "checked" : ""}> ${tr("Vider aussi la corbeille", "Also empty the Recycle Bin")} (${fmt(trash.bytes)})</label>` : ""}
-    ${running.length ? `<div class="mini-note">${esc([...new Set(running)].join(", "))} ${new Set(running).size > 1 ? tr("ouverts : une partie restera", "are open: some will stay") : tr("ouvert : une partie restera", "is open: some will stay")}</div>` : ""}
+    ${running.length ? `<div class="mini-note">${esc([...new Set(running)].join(", "))} ${MAC
+      ? (new Set(running).size > 1 ? tr("ouverts : ils ne seront pas nettoyés", "are open: they won't be cleaned") : tr("ouvert : il ne sera pas nettoyé", "is open: it won't be cleaned"))
+      : (new Set(running).size > 1 ? tr("ouverts : une partie restera", "are open: some will stay") : tr("ouvert : une partie restera", "is open: some will stay"))}</div>` : ""}
     ${adminBytes > 0 ? `<button class="link mini" data-admin>+ ${fmt(adminBytes)} ${tr("avec les droits administrateur", "with admin rights")}</button>` : ""}`;
 
   const cards = [
     card({ cls: "wide", kicker: tr("Nettoyage", "Cleanup"), icon: "broom", tile: "t-clean",
       big: done ? fmt(r.freed) : fmt(careBytes()), sub: done ? tr("libérés", "freed") : tr("de fichiers inutiles", "of junk files"),
       status: done ? { kind: "ok", text: tr("Nettoyé", "Cleaned") } : null, action: done ? null : { go: "system", label: tr("Détails", "Details") }, extra: cleanExtra }),
+    MAC ? card({ kicker: tr("Performances", "Performance"), icon: "bolt", tile: "t-perf",
+      big: memPct != null ? `${memPct}${EN ? "" : " "}%` : "—", sub: tr("de mémoire utilisée", "of memory in use"),
+      action: { go: "memory", label: tr("Voir", "View") } }) :
     card({ kicker: tr("Performances", "Performance"), icon: "bolt", tile: "t-perf",
       big: startupOn != null ? `${startupOn} app${EN ? "" : "li"}${startupOn > 1 ? "s" : ""}` : "—",
       sub: `${tr("au démarrage", "at startup")}${memPct != null ? ` · ${tr("mémoire", "memory")} ${memPct}${EN ? "" : " "}%` : ""}`,
@@ -295,7 +317,7 @@ function renderBento() {
       big: diskInfo ? fmt(diskInfo.free) : "—", sub: diskInfo ? tr(`libres sur ${fmt(diskInfo.total)}`, `free of ${fmt(diskInfo.total)}`) : "",
       status: done ? { kind: "ok", text: tr("Mis à jour", "Updated") } : null,
       extra: diskInfo ? `<div class="bar"><i style="width:${(((diskInfo.total - diskInfo.free) / diskInfo.total) * 100).toFixed(1)}%"></i></div>` : "" }),
-    card({ cls: "half", kicker: "Applications", icon: "grid", tile: "t-apps",
+    MAC ? "" : card({ cls: "half", kicker: "Applications", icon: "grid", tile: "t-apps",
       big: care.installed ? tr(`${care.installed.length} applis`, `${care.installed.length} apps`) : "—",
       sub: appsBytes ? tr(`${fmt(appsBytes)} au total`, `${fmt(appsBytes)} in total`) : tr("installées", "installed"),
       status: done ? { kind: "ok", text: tr("Vérifiées", "Checked") } : null, action: { go: "uninstall", label: tr("Examiner", "Review") } }),
@@ -329,7 +351,7 @@ async function runCareActions() {
   const steps = Object.keys(GROUPS)
     .map((g) => ({ key: g, label: GROUPS[g], ids: junk.filter((i) => i.group === g && ids.includes(i.id)).map((i) => i.id) }))
     .filter((st) => st.ids.length);
-  steps.push({ key: "dns", label: tr("Cache DNS", "DNS cache"), ids: [] });
+  if (!MAC) steps.push({ key: "dns", label: tr("Cache DNS", "DNS cache"), ids: [] });
 
   careView("running");
   $("#scanTitle").textContent = tr("Nettoyage en cours", "Cleaning");
@@ -589,6 +611,81 @@ async function loadStartup() {
   }));
 }
 
+// ---------- Astuces ----------
+// De petits réglages de Windows, chacun réversible : le moteur note la valeur d'origine avant d'écrire.
+const TIP_GROUPS = [
+  ["speed", tr("Plus rapide", "Faster")],
+  ["games", tr("Jeux", "Games")],
+  ["calm", tr("Plus calme", "Quieter")],
+  ["handy", tr("Pratique", "Handy")],
+  ["privacy", tr("Vie privée", "Privacy")],
+];
+let tipsLoaded = false;
+const tipsPending = { explorer: false, signout: false };
+async function loadTips() {
+  tipsLoaded = true;
+  const box = $("#tipsBody");
+  box.innerHTML = `<div class="empty"><div class="spinner"></div></div>`;
+  let tips;
+  try {
+    tips = await invoke("list_tweaks");
+  } catch (e) {
+    box.innerHTML = `<div class="empty">${tr("Impossible de lire les réglages : ", "Couldn't read the settings: ")}${esc(e)}</div>`;
+    return;
+  }
+  const locked = (t) => t.needs_admin && !elevated;
+  const when = (t) => t.after === "signout" ? tr("à la prochaine session", "next sign-in") : t.after === "explorer" ? tr("après redémarrage de l'Explorateur", "after restarting Explorer") : "";
+  box.innerHTML = `${tips.some(locked) ? `<div class="admin-note left above">${tr("Certains réglages se modifient avec les droits administrateur.", "Some settings can only be changed with admin rights.")}<button class="link" data-admin>${tr("Relancer en administrateur", "Relaunch as administrator")}</button></div>` : ""}
+    <div class="tips-pending" id="tipsPending" hidden></div>
+    ${TIP_GROUPS.map(([g, label]) => {
+      const rows = tips.filter((t) => t.group === g);
+      if (!rows.length) return "";
+      return `<div class="list tips"><div class="group-title"><b>${esc(label)}</b><span>${rows.filter((t) => t.enabled).length} / ${rows.length}</span></div>${rows.map((t) => `
+        <div class="item"><span class="ic" data-icon="${g === "games" ? "bolt" : g === "privacy" ? "logo" : "sparkle"}"></span>
+          <span class="txt"><div class="n">${esc(t.name)}${t.needs_admin ? `<span class="chip">admin</span>` : ""}${when(t) ? `<span class="chip">${esc(when(t))}</span>` : ""}</div>
+          <div class="d">${esc(t.detail)}</div></span>
+          <button class="toggle" role="switch" data-id="${esc(t.id)}" data-after="${esc(t.after)}" aria-label="${esc(t.name)}" aria-checked="${t.enabled}" ${locked(t) ? "disabled" : ""}></button></div>`).join("")}</div>`;
+    }).join("")}
+    <p class="tips-foot">${tr("Chaque réglage se désactive d'un clic : Kaury Clean remet exactement la valeur qu'il y avait avant. Aucun service de Windows n'est coupé, rien n'est supprimé.", "Every setting turns off in one click: Kaury Clean puts back exactly the value that was there before. No Windows service is turned off, nothing is deleted.")}</p>`;
+  paintIcons(box);
+  $("[data-admin]", box)?.addEventListener("click", relaunchAsAdmin);
+  $$(".toggle", box).forEach((t) => t.addEventListener("click", async () => {
+    const enabled = t.getAttribute("aria-checked") !== "true";
+    t.disabled = true;
+    try {
+      await invoke("set_tweak", { id: t.dataset.id, enabled });
+      t.setAttribute("aria-checked", String(enabled));
+      const list = t.closest(".list");
+      $(".group-title span", list).textContent = `${$$('[aria-checked="true"]', list).length} / ${$$(".toggle", list).length}`;
+      if (t.dataset.after) tipsPending[t.dataset.after] = true;
+      renderTipsPending();
+    } catch (e) {
+      toast(String(e));
+    }
+    t.disabled = false;
+  }));
+}
+function renderTipsPending() {
+  const bar = $("#tipsPending");
+  if (!bar) return;
+  const { explorer, signout } = tipsPending;
+  bar.hidden = !explorer && !signout;
+  bar.innerHTML = `${explorer ? `<span>${tr("Certains changements s'appliquent après le redémarrage de l'Explorateur.", "Some changes apply after restarting Explorer.")}</span><button class="cta small" data-restart>${tr("Redémarrer l'Explorateur", "Restart Explorer")}</button>` : ""}
+    ${signout ? `<span>${tr("D'autres s'appliquent à ta prochaine session (déconnexion ou redémarrage du PC).", "Others apply at your next sign-in (sign out or restart the PC).")}</span>` : ""}`;
+  $("[data-restart]", bar)?.addEventListener("click", async (e) => {
+    e.currentTarget.disabled = true;
+    try {
+      await invoke("run_maintenance", { id: "restart_explorer" });
+      tipsPending.explorer = false;
+      renderTipsPending();
+      toast(tr("Explorateur redémarré.", "Explorer restarted."));
+    } catch (err) {
+      toast(String(err));
+      e.currentTarget.disabled = false;
+    }
+  });
+}
+
 // ---------- Droits administrateur ----------
 async function relaunchAsAdmin() {
   try {
@@ -612,6 +709,10 @@ document.addEventListener("contextmenu", (e) => {
 // ---------- Démarrage de l'interface ----------
 (async () => {
   translateStatic();
+  if (MAC) {
+    macifyStatic();
+    $$('[data-section="apps"], [data-section="repair"]').forEach((b) => (b.hidden = true));
+  }
   // Le moteur doit connaître la langue avant ses premiers textes (analyse, erreurs, tâches).
   try { await invoke("set_language", { lang: LANG }); } catch (e) { console.error(e); }
   try {
@@ -626,6 +727,12 @@ document.addEventListener("contextmenu", (e) => {
   careView("idle");
   checkUpdateQuietly();
 })();
+
+function macifyStatic() {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) n.textContent = macify(n.textContent);
+  for (const attr of ["title", "placeholder", "aria-label"]) $$(`[${attr}]`).forEach((el) => el.setAttribute(attr, macify(el.getAttribute(attr))));
+}
 
 // Textes fixes de index.html : chaque élément porte sa version anglaise dans data-en
 // (et data-en-title, data-en-placeholder… pour les attributs).
@@ -651,6 +758,7 @@ const DEMO_JUNK = (() => { const GB = 1024 ** 3, MB = 1024 ** 2; return [
       { id: "adobe_media_cache", group: "apps", name: tr("Cache média Adobe", "Adobe media cache"), detail: tr("Premiere Pro et After Effects", "Premiere Pro and After Effects"), bytes: 1.8 * GB, files: 902, running: null },
       { id: "spotify", group: "apps", name: "Spotify", detail: tr("Musique mise en cache : elle se retélécharge quand tu l'écoutes", "Cached music: it downloads again when you play it"), bytes: 3.4 * GB, files: 812, running: "Spotify" },
       { id: "discord", group: "apps", name: "Discord", detail: tr("Images et vidéos déjà vues", "Images and videos already seen"), bytes: 640 * MB, files: 4211, running: null },
+      { id: "other_apps", group: "apps", name: tr("Autres applis", "Other apps"), detail: tr("Caches des applis web installées (Claude, Outlook, Riot, launchers…) : recréés à l'ouverture, tes données ne bougent pas", "Caches of installed web apps (Claude, Outlook, Riot, launchers…): rebuilt on launch, your data stays put"), bytes: 2.4 * GB, files: 9120, running: null },
       { id: "chrome", group: "browsers", name: "Google Chrome", detail: tr("Cache uniquement : mots de passe, favoris et sessions ne bougent pas", "Cache only: passwords, bookmarks and sessions stay put"), bytes: 1.2 * GB, files: 6230, running: "Chrome" },
       { id: "edge", group: "browsers", name: "Microsoft Edge", detail: tr("Cache uniquement : mots de passe, favoris et sessions ne bougent pas", "Cache only: passwords, bookmarks and sessions stay put"), bytes: 486 * MB, files: 2104, running: null },
       { id: "recycle_bin", group: "trash", name: tr("Corbeille", "Recycle Bin"), detail: tr("Tous les disques", "All drives"), bytes: 1.25 * GB, files: 251, running: null },
@@ -723,6 +831,19 @@ function demoInvoke(cmd, args) {
       { id: "hklm|SecurityHealth", name: "SecurityHealth", command: "%windir%\\system32\\SecurityHealthSystray.exe", scope: "machine", enabled: true },
     ]);
     case "set_startup_app": return wait(150, null);
+    case "list_tweaks": return wait(200, [
+      { id: "power_high", group: "speed", name: tr("Mode d’alimentation « Performances élevées »", "\"High performance\" power plan"), detail: tr("Le processeur ne ralentit plus pour économiser l’énergie : tout répond plus vite. Idéal sur un PC fixe ; sur un portable, la batterie dure moins longtemps.", "The processor no longer slows down to save power: everything responds faster. Ideal on a desktop PC; on a laptop, the battery runs out sooner."), needs_admin: false, after: "", enabled: false },
+      { id: "menu_delay", group: "speed", name: tr("Menus sans délai", "Menus without delay"), detail: tr("Les sous-menus (Ouvrir avec, Envoyer vers…) s’ouvrent tout de suite au lieu d’attendre 0,4 seconde.", "Submenus (Open with, Send to…) open right away instead of waiting 0.4 seconds."), needs_admin: false, after: "signout", enabled: false },
+      { id: "animations", group: "speed", name: tr("Couper les animations des fenêtres", "Turn off window animations"), detail: tr("Les fenêtres s’ouvrent et se réduisent d’un coup, sans effet de zoom. Le PC paraît nettement plus vif, surtout s’il est ancien.", "Windows open and minimize instantly, with no zoom effect. The PC feels much snappier, especially an older one."), needs_admin: false, after: "signout", enabled: false },
+      { id: "this_pc", group: "speed", name: tr("L’Explorateur s’ouvre sur « Ce PC »", "Explorer opens on \"This PC\""), detail: tr("Au lieu de l’Accueil, qui charge tes fichiers récents et ceux du cloud : la fenêtre s’affiche plus vite.", "Instead of Home, which loads your recent and cloud files: the window shows up faster."), needs_admin: false, after: "", enabled: true },
+      { id: "start_web", group: "speed", name: tr("Recherche Windows sans Bing", "Windows search without Bing"), detail: tr("La recherche du menu Démarrer ne cherche plus sur internet : elle trouve tes applis et fichiers plus vite, sans résultats web.", "Start menu search no longer looks on the internet: it finds your apps and files faster, without web results."), needs_admin: true, after: "explorer", enabled: false },
+      { id: "game_dvr", group: "games", name: tr("Couper l’enregistrement en arrière-plan", "Turn off background recording"), detail: tr("La Xbox Game Bar n’enregistre plus tes parties en continu : quelques images par seconde en plus dans les jeux.", "The Xbox Game Bar no longer records your games continuously: a few more frames per second in games."), needs_admin: false, after: "", enabled: false },
+      { id: "suggestions", group: "calm", name: tr("Plus de suggestions ni de pubs de Windows", "No more Windows suggestions or ads"), detail: tr("Coupe les « astuces », les applis suggérées, les écrans de bienvenue après les mises à jour et les rappels pour « terminer la configuration ».", "Turns off \"tips\", suggested apps, welcome screens after updates and reminders to \"finish setting up\"."), needs_admin: false, after: "", enabled: false },
+      { id: "classic_menu", group: "handy", name: tr("Menu clic droit complet", "Full right-click menu"), detail: tr("Le clic droit affiche directement toutes les options, sans passer par « Afficher plus d’options ».", "Right-click shows every option right away, without going through \"Show more options\"."), needs_admin: false, after: "explorer", enabled: false },
+      { id: "file_ext", group: "handy", name: tr("Afficher les extensions des fichiers", "Show file extensions"), detail: tr("Tu vois « facture.pdf.exe » au lieu de « facture.pdf » : le piège classique des virus ne marche plus.", "You see \"invoice.pdf.exe\" instead of \"invoice.pdf\": the classic virus trick no longer works."), needs_admin: false, after: "", enabled: true },
+      { id: "ad_id", group: "privacy", name: tr("Pas d’identifiant publicitaire", "No advertising ID"), detail: tr("Les applis ne peuvent plus te suivre d’une appli à l’autre pour te montrer des pubs ciblées.", "Apps can no longer track you from one app to another to show targeted ads."), needs_admin: false, after: "", enabled: false },
+    ]);
+    case "set_tweak": return wait(150, null);
     case "cancel_search": return wait(10, null);
     case "find_old_downloads": return wait(900, [
       f("C:\\Users\\Theo\\Downloads\\Windows11_23H2.iso", 6.2 * GB, 400),

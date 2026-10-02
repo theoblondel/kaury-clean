@@ -32,6 +32,9 @@ taille() { # taille lisible d'un dossier, ou rien s'il n'existe pas
     "$L/Developer/Xcode/DerivedData" "$L/Developer/Xcode/Archives" "$L/Developer/Xcode/iOS DeviceSupport" \
     "$L/Developer/CoreSimulator/Caches" "$L/Developer/CoreSimulator/Devices" \
     "$L/Caches/Homebrew" "$HOME/.npm/_cacache" "$L/Caches/pip" "$L/Caches/Yarn" "$L/pnpm/store" "$HOME/.cache" \
+    "$L/Caches/CocoaPods" "$L/Caches/org.swift.swiftpm" "$L/Caches/org.carthage.CarthageKit" "$HOME/.gradle/caches" \
+    "$L/Developer/Xcode/watchOS DeviceSupport" "$L/Caches/JetBrains" "$L/Caches/us.zoom.xos" \
+    "$L/Caches/com.operasoftware.Opera" "$L/Caches/com.vivaldi.Vivaldi" \
     "$L/Caches/Google/Chrome" "$L/Application Support/Google/Chrome/Default/Service Worker" \
     "$L/Caches/com.apple.Safari" "$L/Caches/Firefox" "$L/Caches/BraveSoftware" "$L/Caches/com.microsoft.edgemac" \
     "$L/Application Support/discord/Cache" "$L/Application Support/discord/Code Cache" "$L/Application Support/discord/GPUCache" \

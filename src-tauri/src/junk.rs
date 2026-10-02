@@ -94,13 +94,116 @@ fn prefixed(dir: Option<PathBuf>, prefix: &str) -> Vec<PathBuf> {
     entries.flatten().filter(|e| e.file_name().to_string_lossy().starts_with(prefix)).map(|e| e.path()).collect()
 }
 
+/// Dossiers enfants réels de `dir` (jamais les liens ni les jonctions, qui mèneraient ailleurs).
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn real_subdirs(dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(dir) else { return vec![] };
+    entries.flatten().filter(|e| e.file_type().is_ok_and(|t| t.is_dir() && !t.is_symlink())).map(|e| e.path()).collect()
+}
+
+/// Les applis Electron se reconnaissent à coup sûr : leur cache a le format de Chromium
+/// (`Cache/Cache_Data/index`, ou `Cache/index` + `data_0` pour les plus anciennes).
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn is_chromium_cache(cache: &Path) -> bool {
+    cache.join("Cache_Data").join("index").is_file() || (cache.join("index").is_file() && cache.join("data_0").is_file())
+}
+
+/// Caches des applis Electron et WebView2 que personne n'a listées : Claude, Riot, Outlook, launchers…
+/// Seulement Cache, Code Cache, GPUCache et les caches de shaders ; jamais les données des applis.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn other_app_caches(local: &Option<PathBuf>, roaming: &Option<PathBuf>, covered: &[PathBuf]) -> Vec<PathBuf> {
+    let mut app_dirs: Vec<PathBuf> = vec![];
+    for base in [local, roaming].into_iter().flatten() {
+        app_dirs.extend(real_subdirs(base));
+    }
+    // Les applis du Microsoft Store rangent leurs dossiers AppData dans LocalCache.
+    let packages: Vec<PathBuf> = local.iter().flat_map(|l| real_subdirs(&l.join("Packages"))).collect();
+    for p in &packages {
+        app_dirs.extend(real_subdirs(&p.join("LocalCache/Roaming")));
+        app_dirs.extend(real_subdirs(&p.join("LocalCache/Local")));
+    }
+
+    let mut out = vec![];
+    for dir in &app_dirs {
+        // Une appli déjà traitée par sa propre ligne reste entière dans celle-ci.
+        if is_chromium_cache(&dir.join("Cache")) && !covered.iter().any(|c| c.starts_with(dir)) {
+            for sub in ["Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache"] {
+                out.push(dir.join(sub));
+            }
+        }
+    }
+    // WebView2 : un dossier EBWebView, jusqu'à quatre niveaux sous l'appli.
+    let mut webviews = vec![];
+    // Temp et les gros caches de développeurs sont profonds et n'ont jamais de WebView2.
+    let skip = ["Packages", "Temp", "npm-cache", "uv", "pip", "Yarn", "Docker", "pnpm"];
+    let mut roots: Vec<PathBuf> = local.iter().flat_map(|l| real_subdirs(l)).filter(|d| !skip.iter().any(|s| d.ends_with(s))).collect();
+    roots.extend(packages.iter().map(|p| p.join("LocalCache")));
+    for root in roots {
+        find_named(&root, "EBWebView", 4, &mut webviews);
+    }
+    for wv in webviews {
+        // Le dossier de Kaury Clean lui-même est en cours d'utilisation.
+        if wv.components().any(|c| c.as_os_str() == "studio.kaury.clean") || covered.iter().any(|c| c.starts_with(&wv)) {
+            continue;
+        }
+        out.extend(chromium_caches(Some(wv)));
+    }
+    out.retain(|p| !covered.iter().any(|c| p.starts_with(c) || c.starts_with(p)));
+    out.sort();
+    out.dedup();
+    out
+}
+
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn find_named(dir: &Path, name: &str, depth: u32, out: &mut Vec<PathBuf>) {
+    for sub in real_subdirs(dir) {
+        if sub.file_name().is_some_and(|n| n == name) {
+            out.push(sub);
+        } else if depth > 1 {
+            find_named(&sub, name, depth - 1, out);
+        }
+    }
+}
+
+/// Jeux Unreal Engine (Fortnite, VALORANT, Epic…) : reconnus à `Saved/Config`. Seulement leurs
+/// journaux, rapports de plantage et pages web en cache ; jamais SaveGames, Cloud ni Demos.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn unreal_leftovers(local: &Option<PathBuf>) -> Vec<PathBuf> {
+    let mut out = vec![];
+    for game in local.iter().flat_map(|l| real_subdirs(l)) {
+        let saved = game.join("Saved");
+        if !saved.join("Config").is_dir() {
+            continue;
+        }
+        for sub in real_subdirs(&saved) {
+            let name = sub.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+            if name == "logs" || name == "crashes" || name == "webcache" || name.starts_with("webcache_") {
+                out.push(sub);
+            }
+        }
+    }
+    out
+}
+
 fn firefox_caches(local: &Option<PathBuf>) -> Vec<PathBuf> {
     let Some(local) = local else { return vec![] };
     let Ok(entries) = std::fs::read_dir(local.join("Mozilla/Firefox/Profiles")) else { return vec![] };
     entries.flatten().map(|e| e.path().join("cache2")).collect()
 }
 
+/// La liste des dossiers dépend du système : celle de macOS est dans le module `mac` plus bas.
+#[cfg(target_os = "macos")]
 fn targets() -> Vec<Target> {
+    mac::targets()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn targets() -> Vec<Target> {
+    windows_targets()
+}
+
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn windows_targets() -> Vec<Target> {
     let local = env_path("LOCALAPPDATA");
     let roaming = env_path("APPDATA");
     // Dossiers de Windows donnés par Windows, jamais par une variable qu'un programme pourrait détourner.
@@ -111,6 +214,10 @@ fn targets() -> Vec<Target> {
     crash.extend(join(&local, "Microsoft/Windows/WER"));
     crash.extend(join(&program_data, "Microsoft/Windows/WER/ReportArchive"));
     crash.extend(join(&program_data, "Microsoft/Windows/WER/ReportQueue"));
+    // Rapports de plantage des navigateurs, envoyés ou non : jamais relus.
+    for browser in ["Google/Chrome", "Microsoft/Edge", "BraveSoftware/Brave-Browser"] {
+        crash.extend(join(&local, &format!("{browser}/User Data/Crashpad/reports")));
+    }
 
     let mut shaders = join(&local, "D3DSCache");
     shaders.extend(join(&local, "NVIDIA/DXCache"));
@@ -122,10 +229,14 @@ fn targets() -> Vec<Target> {
     // La version du Microsoft Store range tout ailleurs.
     let spotify_store = store_app(&local, "SpotifyAB.SpotifyMusic_zpdnekdrzrea0", "LocalCache/Spotify");
     spotify.extend(spotify_store.iter().map(|s| s.join("Data")));
+    spotify.extend(spotify_store.iter().flat_map(|s| ["Browser/Cache", "Browser/Code Cache", "Browser/GPUCache"].map(|b| s.join(b))));
+    spotify.extend(["Browser/Cache", "Browser/Code Cache", "Browser/GPUCache"].iter().flat_map(|b| join(&local, &format!("Spotify/{b}"))));
     spotify.extend(chromium_caches(spotify_store));
 
     let mut dev_python = join(&local, "uv/cache");
     dev_python.extend(join(&local, "pip/cache"));
+    // Python du Microsoft Store : son pip range le cache dans le dossier de l'appli.
+    dev_python.extend(prefixed(local.as_ref().map(|l| l.join("Packages")), "PythonSoftwareFoundation.Python.").into_iter().map(|p| p.join("LocalCache/Local/pip/cache")));
 
     let mut code_editors = electron_caches(&roaming, "Code", &["CachedData", "CachedExtensionVSIXs"]);
     code_editors.extend(electron_caches(&roaming, "Cursor", &["CachedData", "CachedExtensionVSIXs"]));
@@ -146,7 +257,7 @@ fn targets() -> Vec<Target> {
     let mut adobe = join(&roaming, "Adobe/Common/Media Cache Files");
     adobe.extend(join(&roaming, "Adobe/Common/Peak Files"));
 
-    vec![
+    let mut list = vec![
         Target {
             id: "user_temp",
             group: "system",
@@ -297,6 +408,44 @@ fn targets() -> Vec<Target> {
             processes: &[("steam.exe", "Steam")],
             needs_admin: false,
         },
+        // Ajoutés le 01.10.2026 après inventaire d'un vrai PC. Écartés volontairement : les anciennes
+        // versions de Figma (retour arrière), Lightroom (originaux pas toujours synchronisés) et les
+        // « Caches » d'InDesign, qui contiennent InDesign Recovery (les documents non enregistrés).
+        Target {
+            id: "acrobat",
+            group: "apps",
+            name: "Adobe Acrobat",
+            detail: tr("Cache de la partie web d'Acrobat (pas tes PDF)", "Cache of Acrobat's web views (not your PDFs)"),
+            paths: chromium_caches(local.as_ref().map(|l| l.join("Adobe/Acrobat/AVWebview2/DC/EBWebView"))),
+            min_age: Duration::ZERO,
+            processes: &[("Acrobat.exe", "Acrobat")],
+            needs_admin: false,
+        },
+        Target {
+            id: "camera_raw",
+            group: "apps",
+            name: "Adobe Camera Raw",
+            detail: tr("Aperçus des photos RAW, recréés à l'ouverture", "RAW photo previews, rebuilt when opened"),
+            paths: join(&local, "Adobe/CameraRaw/Cache2"),
+            min_age: Duration::ZERO,
+            processes: &[("Photoshop.exe", "Photoshop"), ("Bridge.exe", "Bridge")],
+            needs_admin: false,
+        },
+        Target {
+            id: "game_launchers",
+            group: "apps",
+            name: tr("Lanceurs de jeux", "Game launchers"),
+            detail: tr("Pages web en cache d'EA, Ubisoft et Battle.net (tes jeux ne bougent pas)", "Cached web pages of EA, Ubisoft and Battle.net (your games stay put)"),
+            paths: {
+                let mut p = join(&local, "Electronic Arts/EA Desktop/CEF/BrowserCache");
+                p.extend(join(&local, "Ubisoft Game Launcher/cache/http2"));
+                p.extend(join(&local, "Battle.net/Cache"));
+                p
+            },
+            min_age: Duration::ZERO,
+            processes: &[("EADesktop.exe", "EA app"), ("UbisoftConnect.exe", "Ubisoft Connect"), ("Battle.net.exe", "Battle.net")],
+            needs_admin: false,
+        },
         Target {
             id: "npm_cache",
             group: "apps",
@@ -397,7 +546,75 @@ fn targets() -> Vec<Target> {
             processes: &[("firefox.exe", "Firefox")],
             needs_admin: false,
         },
-    ]
+        // Ajoutés le 02.10.2026 après inventaire d'un vrai PC.
+        Target {
+            id: "electron_downloads",
+            group: "apps",
+            name: tr("Téléchargements d'Electron", "Electron downloads"),
+            detail: tr("Copies d'Electron gardées par les outils de développement, retéléchargées au besoin", "Electron copies kept by developer tools, downloaded again when needed"),
+            paths: {
+                let mut p = join(&local, "electron/Cache");
+                p.extend(join(&local, "electron-builder/Cache"));
+                p.extend(local.iter().flat_map(|l| real_subdirs(&l.join("Packages"))).map(|p| p.join("LocalCache/Local/electron/Cache")));
+                p
+            },
+            min_age: Duration::ZERO,
+            processes: &[],
+            needs_admin: false,
+        },
+        Target {
+            id: "app_logs",
+            group: "system",
+            name: tr("Vieux journaux d'applis", "Old app logs"),
+            detail: tr("Journaux de OneDrive et d'Adobe de plus de 7 jours", "OneDrive and Adobe logs older than 7 days"),
+            paths: {
+                let mut p = join(&local, "Microsoft/OneDrive/logs");
+                p.extend(join(&roaming, "Adobe/logs"));
+                p
+            },
+            min_age: Duration::from_secs(7 * 24 * 3600),
+            processes: &[],
+            needs_admin: false,
+        },
+        Target {
+            id: "adobe_temp",
+            group: "apps",
+            name: tr("Restes d'installation Adobe", "Adobe installation leftovers"),
+            detail: tr("Fichiers extraits par l'installeur de Creative Cloud dans C:\\adobeTemp, plus vieux que 7 jours", "Files unpacked by the Creative Cloud installer in C:\\adobeTemp, older than 7 days"),
+            paths: vec![system_drive_dir("adobeTemp")],
+            min_age: Duration::from_secs(7 * 24 * 3600),
+            processes: &[("Creative Cloud.exe", "Creative Cloud")],
+            needs_admin: true,
+        },
+        Target {
+            id: "game_logs",
+            group: "apps",
+            name: tr("Journaux des jeux", "Game logs"),
+            detail: tr("Journaux, rapports de plantage et pages web en cache des jeux Unreal (Fortnite, VALORANT…) : tes sauvegardes ne bougent pas", "Logs, crash reports and cached web pages of Unreal games (Fortnite, VALORANT…): your saves stay put"),
+            paths: {
+                let mut p = unreal_leftovers(&local);
+                p.extend(join(&roaming, ".minecraft/webcache2"));
+                p.extend(chromium_caches(local.as_ref().map(|l| l.join("Overwolf/CefBrowserCache"))));
+                p
+            },
+            min_age: DAY,
+            processes: &[],
+            needs_admin: false,
+        },
+    ];
+    // En dernier : tout ce qui n'est pas déjà dans une autre ligne.
+    let covered: Vec<PathBuf> = list.iter().flat_map(|t| t.paths.clone()).collect();
+    list.push(Target {
+        id: "other_apps",
+        group: "apps",
+        name: tr("Autres applis", "Other apps"),
+        detail: tr("Caches des applis web installées (Claude, Outlook, Riot, launchers…) : recréés à l'ouverture, tes données ne bougent pas", "Caches of installed web apps (Claude, Outlook, Riot, launchers…): rebuilt on launch, your data stays put"),
+        paths: other_app_caches(&local, &roaming, &covered),
+        min_age: Duration::ZERO,
+        processes: &[],
+        needs_admin: false,
+    });
+    list
 }
 
 fn running_process(sys: &sysinfo::System, processes: &[(&str, &str)]) -> Option<String> {
@@ -475,6 +692,13 @@ const PROGRAM_DATA_TARGETS: &[&str] = &[
     "NVIDIA Corporation/NVIDIA app/UpdateFramework/ota-artifacts",
 ];
 
+/// Dossiers temporaires laissés à la racine du disque système par des installeurs.
+const SYSTEM_DRIVE_TARGETS: &[&str] = &["adobeTemp"];
+
+fn system_drive_dir(rel: &str) -> PathBuf {
+    PathBuf::from(format!(r"{}\{rel}", garde::system_drive()))
+}
+
 fn program_data() -> PathBuf {
     PathBuf::from(format!(r"{}\ProgramData", garde::system_drive()))
 }
@@ -483,11 +707,24 @@ fn is_windows_target(path: &Path) -> bool {
     let (windir, program_data) = (garde::windows_dir(), program_data());
     WINDOWS_TARGETS.iter().any(|rel| windir.join(rel) == path)
         || PROGRAM_DATA_TARGETS.iter().any(|rel| program_data.join(rel) == path)
+        || SYSTEM_DRIVE_TARGETS.iter().any(|rel| system_drive_dir(rel) == path)
 }
 
 pub fn clean(ids: &[String], progress: &dyn Fn(&str)) -> CleanReport {
     let mut report = CleanReport::default();
+    // macOS laisse effacer un fichier qu'une appli a ouvert (Windows le verrouille) : vider le cache
+    // d'une appli en marche pourrait la dérégler. Sur Mac, une appli ouverte est donc laissée de côté.
+    #[cfg(target_os = "macos")]
+    let sys = {
+        let mut s = sysinfo::System::new();
+        s.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+        s
+    };
     for t in targets().into_iter().filter(|t| ids.iter().any(|id| id == t.id)) {
+        #[cfg(target_os = "macos")]
+        if running_process(&sys, t.processes).is_some() {
+            continue;
+        }
         progress(t.name);
         // Les chemins de ton compte viennent de variables (TEMP, LOCALAPPDATA...) qu'un programme peut
         // détourner vers C:\Windows : en administrateur, ils doivent être dans ton dossier personnel.
@@ -531,13 +768,144 @@ mod recycle_bin {
     }
 }
 
-#[cfg(not(windows))]
+/// Corbeille de macOS : ~/.Trash. macOS la protège (accès complet au disque) : sans cette
+/// autorisation, la lecture échoue et la corbeille n'est simplement pas proposée.
+#[cfg(target_os = "macos")]
+mod recycle_bin {
+    use std::path::PathBuf;
+    use std::time::Duration;
+
+    fn trash() -> Option<PathBuf> {
+        dirs::home_dir().map(|h| h.join(".Trash"))
+    }
+
+    pub fn query() -> Option<(u64, u64)> {
+        let t = trash()?;
+        std::fs::read_dir(&t).ok()?;
+        Some(crate::fsutil::dir_size(&t, Duration::ZERO))
+    }
+
+    pub fn empty() -> bool {
+        let Some(t) = trash() else { return false };
+        let (_, _, skipped) = crate::fsutil::clean_dir(&t, Duration::ZERO);
+        skipped == 0
+    }
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 mod recycle_bin {
     pub fn query() -> Option<(u64, u64)> {
         None
     }
     pub fn empty() -> bool {
         false
+    }
+}
+
+/// Dossiers nettoyés sur macOS. Même règle que sur Windows : que des caches qui se recréent tout
+/// seuls, jamais de données. Chaque cible doit avoir été vue sur un vrai Mac (scripts/inventaire-mac.sh)
+/// avant d'être publiée.
+#[cfg(target_os = "macos")]
+mod mac {
+    use super::{Target, DAY};
+    use crate::langue::tr;
+    use std::path::PathBuf;
+    use std::time::Duration;
+
+    fn under(base: &Option<PathBuf>, rels: &[&str]) -> Vec<PathBuf> {
+        base.iter().flat_map(|b| rels.iter().map(move |r| b.join(r))).collect()
+    }
+
+    /// Caches d'une appli Electron rangée dans Application Support : jamais ses réglages ni ses données.
+    fn electron(support: &Option<PathBuf>, app: &str, extra: &[&str]) -> Vec<PathBuf> {
+        let Some(s) = support else { return vec![] };
+        ["Cache", "Code Cache", "GPUCache"].iter().chain(extra).map(|sub| s.join(app).join(sub)).collect()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn t(
+        id: &'static str,
+        group: &'static str,
+        name: &'static str,
+        detail: &'static str,
+        paths: Vec<PathBuf>,
+        min_age: Duration,
+        processes: &'static [(&'static str, &'static str)],
+    ) -> Target {
+        Target { id, group, name, detail, paths, min_age, processes, needs_admin: false }
+    }
+
+    fn firefox(caches: &Option<PathBuf>) -> Vec<PathBuf> {
+        let Some(c) = caches else { return vec![] };
+        let Ok(entries) = std::fs::read_dir(c.join("Firefox/Profiles")) else { return vec![] };
+        entries.flatten().map(|e| e.path().join("cache2")).collect()
+    }
+
+    pub fn targets() -> Vec<Target> {
+        let home = dirs::home_dir();
+        let library = home.as_ref().map(|h| h.join("Library"));
+        let caches = library.as_ref().map(|l| l.join("Caches"));
+        let support = library.as_ref().map(|l| l.join("Application Support"));
+
+        let mut dev_js = under(&home, &[".npm/_cacache"]);
+        dev_js.extend(under(&caches, &["Yarn"]));
+        let mut code_editors = electron(&support, "Code", &["CachedData", "CachedExtensionVSIXs"]);
+        code_editors.extend(electron(&support, "Cursor", &["CachedData", "CachedExtensionVSIXs"]));
+
+        vec![
+            t("mac_logs", "system", tr("Journaux des applis", "App logs"), "~/Library/Logs",
+              under(&library, &["Logs"]), DAY, &[]),
+            t("xcode_derived", "apps", "Xcode", tr("Fichiers de compilation (DerivedData)", "Build files (DerivedData)"),
+              under(&library, &["Developer/Xcode/DerivedData"]), Duration::ZERO, &[("Xcode", "Xcode")]),
+            t("simulator_caches", "apps", tr("Simulateurs iOS", "iOS Simulators"), tr("Caches des simulateurs", "Simulator caches"),
+              under(&library, &["Developer/CoreSimulator/Caches"]), Duration::ZERO, &[("Simulator", "Simulator")]),
+            t("homebrew", "apps", "Homebrew", tr("Paquets déjà installés", "Packages already installed"),
+              under(&caches, &["Homebrew"]), Duration::ZERO, &[]),
+            t("dev_js", "apps", "npm / Yarn", tr("Paquets téléchargés", "Downloaded packages"),
+              dev_js, Duration::ZERO, &[]),
+            t("dev_python", "apps", "pip", tr("Paquets Python téléchargés", "Downloaded Python packages"),
+              under(&caches, &["pip"]), Duration::ZERO, &[]),
+            t("code_editors", "apps", "VS Code / Cursor", tr("Caches de l'éditeur", "Editor caches"),
+              code_editors, Duration::ZERO, &[("Code", "VS Code"), ("Cursor", "Cursor")]),
+            t("discord", "apps", "Discord", tr("Images et vidéos déjà vues", "Images and videos already seen"),
+              electron(&support, "discord", &[]), Duration::ZERO, &[("Discord", "Discord")]),
+            t("slack", "apps", "Slack", tr("Cache de l'appli", "App cache"),
+              electron(&support, "Slack", &[]), Duration::ZERO, &[("Slack", "Slack")]),
+            t("spotify", "apps", "Spotify", tr("Morceaux en cache (pas tes téléchargements)", "Cached tracks (not your downloads)"),
+              under(&caches, &["com.spotify.client"]), Duration::ZERO, &[("Spotify", "Spotify")]),
+            t("adobe", "apps", "Adobe", tr("Caches des applis Adobe", "Adobe app caches"),
+              { let mut a = under(&caches, &["Adobe"]); a.extend(under(&support, &["Adobe/Common/Media Cache Files", "Adobe/Common/Peak Files"])); a },
+              Duration::ZERO, &[("Adobe Premiere Pro", "Premiere Pro"), ("After Effects", "After Effects")]),
+            t("steam", "apps", "Steam", tr("Cache de la boutique", "Store cache"),
+              under(&support, &["Steam/config/htmlcache"]), Duration::ZERO, &[("steam_osx", "Steam")]),
+            t("chrome", "browsers", "Google Chrome", tr("Cache (pas tes mots de passe ni tes sessions)", "Cache (not your passwords or sessions)"),
+              under(&caches, &["Google/Chrome"]), Duration::ZERO, &[("Google Chrome", "Chrome")]),
+            t("edge", "browsers", "Microsoft Edge", tr("Cache (pas tes mots de passe ni tes sessions)", "Cache (not your passwords or sessions)"),
+              under(&caches, &["Microsoft Edge"]), Duration::ZERO, &[("Microsoft Edge", "Edge")]),
+            t("brave", "browsers", "Brave", tr("Cache (pas tes mots de passe ni tes sessions)", "Cache (not your passwords or sessions)"),
+              under(&caches, &["BraveSoftware/Brave-Browser"]), Duration::ZERO, &[("Brave Browser", "Brave")]),
+            t("firefox", "browsers", "Firefox", tr("Cache (pas tes mots de passe ni tes sessions)", "Cache (not your passwords or sessions)"),
+              firefox(&caches), Duration::ZERO, &[("firefox", "Firefox")]),
+            t("opera", "browsers", "Opera", tr("Cache (pas tes mots de passe ni tes sessions)", "Cache (not your passwords or sessions)"),
+              under(&caches, &["com.operasoftware.Opera"]), Duration::ZERO, &[("Opera", "Opera")]),
+            t("vivaldi", "browsers", "Vivaldi", tr("Cache (pas tes mots de passe ni tes sessions)", "Cache (not your passwords or sessions)"),
+              under(&caches, &["com.vivaldi.Vivaldi"]), Duration::ZERO, &[("Vivaldi", "Vivaldi")]),
+            // Ajoutés le 02.10.2026, choisis pour ne contenir que des caches documentés comme tels.
+            // Écartés volontairement : sauvegardes d'iPhone (MobileSync), instantanés Time Machine,
+            // simulateurs entiers (CoreSimulator/Devices), Docker, machines virtuelles, messageries.
+            t("xcode_device_support", "apps", tr("Xcode · iPhone branchés", "Xcode · connected iPhones"),
+              tr("Symboles des appareils déjà branchés, retéléchargés au besoin", "Symbols of devices already connected, downloaded again if needed"),
+              under(&library, &["Developer/Xcode/iOS DeviceSupport", "Developer/Xcode/watchOS DeviceSupport"]),
+              Duration::ZERO, &[("Xcode", "Xcode")]),
+            t("dev_apple", "apps", "CocoaPods / Swift / Gradle", tr("Paquets de développement téléchargés", "Downloaded development packages"),
+              { let mut d = under(&caches, &["CocoaPods", "org.swift.swiftpm", "org.carthage.CarthageKit"]); d.extend(under(&home, &[".gradle/caches"])); d },
+              Duration::ZERO, &[("Xcode", "Xcode"), ("studio", "Android Studio")]),
+            t("jetbrains", "apps", "JetBrains", tr("Caches des éditeurs JetBrains (index recalculés)", "JetBrains editor caches (indexes rebuilt)"),
+              under(&caches, &["JetBrains"]), Duration::ZERO,
+              &[("idea", "IntelliJ IDEA"), ("webstorm", "WebStorm"), ("pycharm", "PyCharm"), ("phpstorm", "PhpStorm"), ("studio", "Android Studio"), ("goland", "GoLand"), ("clion", "CLion"), ("rider", "Rider")]),
+            t("zoom", "apps", "Zoom", tr("Cache de l'appli (pas tes réunions ni tes discussions)", "App cache (not your meetings or chats)"),
+              under(&caches, &["us.zoom.xos"]), Duration::ZERO, &[("zoom.us", "Zoom")]),
+        ]
     }
 }
 
@@ -588,6 +956,57 @@ mod tests {
         }
         assert!(names.contains(&"WV2Profile_tfw/Cache".to_string()));
         assert!(!names.iter().any(|n| n.starts_with("Crashpad") || n.starts_with("Snapshots")));
+    }
+
+    #[test]
+    fn other_apps_only_pick_chromium_caches() {
+        let root = tempfile::tempdir().unwrap();
+        let local = root.path().join("Local");
+        let roaming = root.path().join("Roaming");
+        let mk = |p: &Path| std::fs::create_dir_all(p).unwrap();
+        let touch = |p: &Path| std::fs::write(p, b"x").unwrap();
+        // Une appli Electron : cache au format Chromium, plus ses vraies données à côté.
+        mk(&roaming.join("AppX/Cache/Cache_Data"));
+        touch(&roaming.join("AppX/Cache/Cache_Data/index"));
+        mk(&roaming.join("AppX/Local Storage"));
+        // Un dossier « Cache » qui n'est pas celui de Chromium : jamais touché.
+        mk(&roaming.join("AppY/Cache"));
+        touch(&roaming.join("AppY/Cache/save.dat"));
+        // Une appli WebView2, trois niveaux plus bas.
+        mk(&local.join("Vendor/Tool/EBWebView/Default/Cache"));
+        mk(&local.join("Vendor/Tool/EBWebView/Default/IndexedDB"));
+        // Le propre dossier de Kaury Clean.
+        mk(&local.join("studio.kaury.clean/EBWebView/Default/Cache"));
+        // Une appli déjà couverte par une autre ligne.
+        mk(&roaming.join("Done/Cache/Cache_Data"));
+        touch(&roaming.join("Done/Cache/Cache_Data/index"));
+
+        let covered = vec![roaming.join("Done/Cache")];
+        let found = other_app_caches(&Some(local.clone()), &Some(roaming.clone()), &covered);
+        assert!(found.contains(&roaming.join("AppX/Cache")));
+        assert!(found.contains(&roaming.join("AppX/Code Cache")));
+        assert!(found.contains(&local.join("Vendor/Tool/EBWebView/Default/Cache")));
+        assert!(!found.iter().any(|p| p.starts_with(roaming.join("AppY"))));
+        assert!(!found.iter().any(|p| p.starts_with(roaming.join("Done"))));
+        assert!(!found.iter().any(|p| p.starts_with(local.join("studio.kaury.clean"))));
+        for p in &found {
+            let last = p.file_name().unwrap().to_string_lossy().to_string();
+            assert!(["Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache", "ShaderCache", "GrShaderCache"].contains(&last.as_str()), "{}", p.display());
+        }
+    }
+
+    #[test]
+    fn unreal_leftovers_never_touch_saves() {
+        let root = tempfile::tempdir().unwrap();
+        let local = root.path().to_path_buf();
+        for d in ["Game/Saved/Config", "Game/Saved/Logs", "Game/Saved/Crashes", "Game/Saved/webcache_4430", "Game/Saved/SaveGames", "Game/Saved/Cloud", "NotAGame/Saved/Logs"] {
+            std::fs::create_dir_all(local.join(d)).unwrap();
+        }
+        let found = unreal_leftovers(&Some(local.clone()));
+        assert!(found.contains(&local.join("Game/Saved/Logs")));
+        assert!(found.contains(&local.join("Game/Saved/webcache_4430")));
+        assert!(!found.iter().any(|p| p.ends_with("SaveGames") || p.ends_with("Cloud") || p.ends_with("Config")));
+        assert!(!found.iter().any(|p| p.starts_with(local.join("NotAGame"))));
     }
 
     #[test]

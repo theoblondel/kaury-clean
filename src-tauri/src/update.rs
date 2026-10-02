@@ -87,6 +87,12 @@ fn asset_url(release: &serde_json::Value, name: &str) -> String {
         .to_string()
 }
 
+/// L'installeur de ce système dans une release : l'installeur NSIS sur Windows, le .dmg sur macOS.
+#[cfg(target_os = "macos")]
+const INSTALLER_SUFFIX: &str = ".dmg";
+#[cfg(not(target_os = "macos"))]
+const INSTALLER_SUFFIX: &str = "-setup.exe";
+
 pub fn check(current: &str) -> Result<UpdateInfo, String> {
     let release: serde_json::Value = agent()
         .get(&format!("https://api.github.com/repos/{REPO}/releases/latest"))
@@ -105,7 +111,7 @@ pub fn check(current: &str) -> Result<UpdateInfo, String> {
         .as_array()
         .into_iter()
         .flatten()
-        .find(|a| a["name"].as_str().is_some_and(|n| n.ends_with("-setup.exe")));
+        .find(|a| a["name"].as_str().is_some_and(|n| n.ends_with(INSTALLER_SUFFIX)));
     let file_name = asset.and_then(|a| a["name"].as_str()).unwrap_or("").to_string();
     let download_url = asset_url(&release, &file_name);
     // La signature est publiée à côté : « Kaury.Clean_0.8.0_x64-setup.exe.sig ». Tant qu'elle n'est
@@ -225,7 +231,14 @@ pub fn launch_installer(path: &Path) -> Result<(), String> {
     crate::elevation::shell_open(&path.to_string_lossy(), "")
 }
 
-#[cfg(not(windows))]
+/// macOS : ouvre le .dmg vérifié. Le Finder affiche Kaury Clean à glisser dans Applications,
+/// à la place de l'ancienne version.
+#[cfg(target_os = "macos")]
+pub fn launch_installer(path: &Path) -> Result<(), String> {
+    std::process::Command::new("/usr/bin/open").arg(path).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 pub fn launch_installer(_path: &Path) -> Result<(), String> {
     Err(tr("Disponible uniquement sur Windows", "Only available on Windows").into())
 }

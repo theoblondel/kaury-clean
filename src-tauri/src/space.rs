@@ -131,9 +131,22 @@ pub fn scan(total: u64, used: u64, progress: &dyn Fn(&str)) -> SpaceReport {
             }
         }
     }
-    places.extend(children(&PathBuf::from(format!(r"{drive}\ProgramData"))).into_iter().map(|p| (p, "apps")));
-    for pf in ["Program Files", "Program Files (x86)"] {
-        places.extend(children(&PathBuf::from(format!(r"{drive}\{pf}"))).into_iter().map(|p| (p, "programs")));
+    if cfg!(target_os = "macos") {
+        // macOS : les applis dans /Applications, leurs données dans ~/Library (déjà parcourue plus haut
+        // comme un dossier de ton compte, on la détaille ici).
+        let _ = &drive;
+        places.retain(|(p, _)| p.file_name().is_none_or(|n| n != "Library"));
+        if let Some(home) = garde::profile_dir() {
+            for sub in ["Application Support", "Caches", "Containers", "Developer", "Group Containers"] {
+                places.extend(children(&home.join("Library").join(sub)).into_iter().map(|p| (p, "apps")));
+            }
+        }
+        places.extend(children(&PathBuf::from("/Applications")).into_iter().map(|p| (p, "programs")));
+    } else {
+        places.extend(children(&PathBuf::from(format!(r"{drive}\ProgramData"))).into_iter().map(|p| (p, "apps")));
+        for pf in ["Program Files", "Program Files (x86)"] {
+            places.extend(children(&PathBuf::from(format!(r"{drive}\{pf}"))).into_iter().map(|p| (p, "programs")));
+        }
     }
 
     let mut entries: Vec<SpaceEntry> = vec![];
@@ -157,7 +170,7 @@ pub fn scan(total: u64, used: u64, progress: &dyn Fn(&str)) -> SpaceReport {
         SpaceGroup { kind: "apps", label: tr("Données d'applis", "App data"), bytes: apps },
         SpaceGroup { kind: "programs", label: tr("Programmes", "Programs"), bytes: programs },
         // Le reste de l'espace utilisé : Windows, fichier d'échange, mise en veille prolongée, points de restauration.
-        SpaceGroup { kind: "system", label: tr("Windows et le reste", "Windows and the rest"), bytes: used.saturating_sub(files + apps + programs) },
+        SpaceGroup { kind: "system", label: if cfg!(target_os = "macos") { tr("macOS et le reste", "macOS and the rest") } else { tr("Windows et le reste", "Windows and the rest") }, bytes: used.saturating_sub(files + apps + programs) },
     ];
 
     entries.sort_by(|a, b| b.bytes.cmp(&a.bytes));
@@ -184,7 +197,11 @@ pub fn open(path: &str) -> Result<(), String> {
             .map(|_| ())
             .map_err(|e| e.to_string())
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("/usr/bin/open").arg(&wanted).spawn().map(|_| ()).map_err(|e| e.to_string())
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     Err(tr("Disponible uniquement sur Windows", "Only available on Windows").into())
 }
 

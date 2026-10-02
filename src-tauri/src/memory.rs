@@ -39,8 +39,19 @@ const PROTECTED: &[&str] = &[
     "kaury-clean.exe", "msedgewebview2.exe",
 ];
 
+/// Processus de macOS (et de Kaury Clean) qu'on ne propose jamais de fermer.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+const PROTECTED_MAC: &[&str] = &[
+    "kernel_task", "launchd", "windowserver", "loginwindow", "finder", "dock", "systemuiserver", "controlcenter",
+    "notificationcenter", "spotlight", "mds", "mds_stores", "mdworker_shared", "coreaudiod", "cfprefsd", "distnoted",
+    "trustd", "securityd", "opendirectoryd", "bluetoothd", "airportd", "powerd", "logd", "usereventagent",
+    "corespotlightd", "wallpaperagent", "sharingd", "talagent", "universalaccessd", "softwareupdated",
+    "kaury-clean", "kaury clean",
+];
+
 fn protected(exe: &str) -> bool {
-    PROTECTED.contains(&exe.to_lowercase().as_str())
+    let e = exe.to_lowercase();
+    PROTECTED.contains(&e.as_str()) || (cfg!(target_os = "macos") && PROTECTED_MAC.contains(&e.as_str()))
 }
 
 /// « chrome.exe » → « Chrome », « AfterFX.exe » → « AfterFX ».
@@ -94,6 +105,19 @@ pub fn close(exe: &str, force: bool) -> Result<bool, String> {
     if protected(exe) || !still_running(exe) {
         return Err(tr("Cette appli ne peut pas être fermée d'ici", "This app can't be closed from here").into());
     }
+    request_close(exe, force)?;
+    // On laisse quelques secondes à l'appli pour se fermer proprement.
+    for _ in 0..10 {
+        if !still_running(exe) {
+            return Ok(true);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(300));
+    }
+    Ok(false)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn request_close(exe: &str, force: bool) -> Result<(), String> {
     let mut cmd = Command::new(crate::garde::windows_program("taskkill.exe"));
     if force {
         cmd.arg("/F");
@@ -104,15 +128,27 @@ pub fn close(exe: &str, force: bool) -> Result<bool, String> {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW : pas de fenêtre noire qui clignote
     }
-    let _ = cmd.output().map_err(|e| e.to_string())?;
-    // On laisse quelques secondes à l'appli pour se fermer proprement.
-    for _ in 0..10 {
-        if !still_running(exe) {
-            return Ok(true);
+    cmd.output().map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// macOS : poliment, comme Quitter dans le menu de l'appli (elle peut proposer d'enregistrer) ;
+/// avec `force`, un signal d'arrêt immédiat à tous ses processus.
+#[cfg(target_os = "macos")]
+fn request_close(exe: &str, force: bool) -> Result<(), String> {
+    if force {
+        let mut sys = System::new();
+        sys.refresh_processes(ProcessesToUpdate::All, true);
+        for p in sys.processes_by_exact_name(OsStr::new(exe)) {
+            let _ = p.kill_with(sysinfo::Signal::Kill);
         }
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        return Ok(());
     }
-    Ok(false)
+    // Le nom passe en argument du script, jamais dans son texte : pas d'injection possible.
+    Command::new("/usr/bin/osascript")
+        .args(["-e", "on run argv", "-e", "tell application (item 1 of argv) to quit", "-e", "end run", exe])
+        .output()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

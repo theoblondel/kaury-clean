@@ -58,23 +58,27 @@ function signer(tag) {
   }
   const privateKey = createPrivateKey(readFileSync(KEY_FILE));
   const release = JSON.parse(gh(["release", "view", ...(tag ? [tag] : []), "-R", REPO, "--json", "tagName,assets"]));
-  const installer = release.assets.find((a) => a.name.endsWith("-setup.exe"));
-  if (!installer) {
+  // Un installeur par système : l'installeur NSIS de Windows, le .dmg de macOS.
+  const installers = release.assets.filter((a) => a.name.endsWith("-setup.exe") || a.name.endsWith(".dmg"));
+  if (!installers.length) {
     console.error(`La release ${release.tagName} n'a pas encore d'installeur : attends la fin du build GitHub Actions, puis relance.`);
     process.exit(1);
   }
   const dir = mkdtempSync(join(tmpdir(), "kaury-signature-"));
   try {
-    gh(["release", "download", release.tagName, "-R", REPO, "-p", installer.name, "-D", dir]);
-    const data = readFileSync(join(dir, installer.name));
-    const signature = sign(null, message(installer.name, data), privateKey);
-    if (!verify(null, message(installer.name, data), createPublicKey(privateKey), signature)) {
-      throw new Error("La signature ne se vérifie pas");
+    for (const installer of installers) {
+      gh(["release", "download", release.tagName, "-R", REPO, "-p", installer.name, "-D", dir]);
+      const data = readFileSync(join(dir, installer.name));
+      const signature = sign(null, message(installer.name, data), privateKey);
+      if (!verify(null, message(installer.name, data), createPublicKey(privateKey), signature)) {
+        throw new Error(`La signature de ${installer.name} ne se vérifie pas`);
+      }
+      const sigPath = join(dir, `${installer.name}.sig`);
+      writeFileSync(sigPath, signature);
+      gh(["release", "upload", release.tagName, "-R", REPO, sigPath, "--clobber"], { stdio: "inherit" });
+      console.log(`${installer.name}.sig ajouté à la release.`);
     }
-    const sigPath = join(dir, `${installer.name}.sig`);
-    writeFileSync(sigPath, signature);
-    gh(["release", "upload", release.tagName, "-R", REPO, sigPath, "--clobber"], { stdio: "inherit" });
-    console.log(`\n${release.tagName} signée : ${installer.name}.sig ajouté à la release.\nLes Kaury Clean installés proposeront la mise à jour dès maintenant.`);
+    console.log(`\n${release.tagName} signée. Les Kaury Clean installés proposeront la mise à jour dès maintenant.`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
