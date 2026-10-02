@@ -296,7 +296,9 @@ function renderBento() {
 
   const cleanExtra = done ? "" : `
     ${trash && trash.bytes > 0 ? `<label class="mini-check"><input type="checkbox" id="careTrash" ${care.includeTrash ? "checked" : ""}> ${tr("Vider aussi la corbeille", "Also empty the Recycle Bin")} (${fmt(trash.bytes)})</label>` : ""}
-    ${running.length ? `<div class="mini-note">${esc([...new Set(running)].join(", "))} ${new Set(running).size > 1 ? tr("ouverts : une partie restera", "are open: some will stay") : tr("ouvert : une partie restera", "is open: some will stay")}</div>` : ""}
+    ${running.length ? `<div class="mini-note">${esc([...new Set(running)].join(", "))} ${MAC
+      ? (new Set(running).size > 1 ? tr("ouverts : ils ne seront pas nettoyés", "are open: they won't be cleaned") : tr("ouvert : il ne sera pas nettoyé", "is open: it won't be cleaned"))
+      : (new Set(running).size > 1 ? tr("ouverts : une partie restera", "are open: some will stay") : tr("ouvert : une partie restera", "is open: some will stay"))}</div>` : ""}
     ${adminBytes > 0 ? `<button class="link mini" data-admin>+ ${fmt(adminBytes)} ${tr("avec les droits administrateur", "with admin rights")}</button>` : ""}`;
 
   const cards = [

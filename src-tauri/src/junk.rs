@@ -537,7 +537,19 @@ fn is_windows_target(path: &Path) -> bool {
 
 pub fn clean(ids: &[String], progress: &dyn Fn(&str)) -> CleanReport {
     let mut report = CleanReport::default();
+    // macOS laisse effacer un fichier qu'une appli a ouvert (Windows le verrouille) : vider le cache
+    // d'une appli en marche pourrait la dérégler. Sur Mac, une appli ouverte est donc laissée de côté.
+    #[cfg(target_os = "macos")]
+    let sys = {
+        let mut s = sysinfo::System::new();
+        s.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+        s
+    };
     for t in targets().into_iter().filter(|t| ids.iter().any(|id| id == t.id)) {
+        #[cfg(target_os = "macos")]
+        if running_process(&sys, t.processes).is_some() {
+            continue;
+        }
         progress(t.name);
         // Les chemins de ton compte viennent de variables (TEMP, LOCALAPPDATA...) qu'un programme peut
         // détourner vers C:\Windows : en administrateur, ils doivent être dans ton dossier personnel.
@@ -699,6 +711,25 @@ mod mac {
               under(&caches, &["BraveSoftware/Brave-Browser"]), Duration::ZERO, &[("Brave Browser", "Brave")]),
             t("firefox", "browsers", "Firefox", tr("Cache (pas tes mots de passe ni tes sessions)", "Cache (not your passwords or sessions)"),
               firefox(&caches), Duration::ZERO, &[("firefox", "Firefox")]),
+            t("opera", "browsers", "Opera", tr("Cache (pas tes mots de passe ni tes sessions)", "Cache (not your passwords or sessions)"),
+              under(&caches, &["com.operasoftware.Opera"]), Duration::ZERO, &[("Opera", "Opera")]),
+            t("vivaldi", "browsers", "Vivaldi", tr("Cache (pas tes mots de passe ni tes sessions)", "Cache (not your passwords or sessions)"),
+              under(&caches, &["com.vivaldi.Vivaldi"]), Duration::ZERO, &[("Vivaldi", "Vivaldi")]),
+            // Ajoutés le 02.10.2026, choisis pour ne contenir que des caches documentés comme tels.
+            // Écartés volontairement : sauvegardes d'iPhone (MobileSync), instantanés Time Machine,
+            // simulateurs entiers (CoreSimulator/Devices), Docker, machines virtuelles, messageries.
+            t("xcode_device_support", "apps", tr("Xcode · iPhone branchés", "Xcode · connected iPhones"),
+              tr("Symboles des appareils déjà branchés, retéléchargés au besoin", "Symbols of devices already connected, downloaded again if needed"),
+              under(&library, &["Developer/Xcode/iOS DeviceSupport", "Developer/Xcode/watchOS DeviceSupport"]),
+              Duration::ZERO, &[("Xcode", "Xcode")]),
+            t("dev_apple", "apps", "CocoaPods / Swift / Gradle", tr("Paquets de développement téléchargés", "Downloaded development packages"),
+              { let mut d = under(&caches, &["CocoaPods", "org.swift.swiftpm", "org.carthage.CarthageKit"]); d.extend(under(&home, &[".gradle/caches"])); d },
+              Duration::ZERO, &[("Xcode", "Xcode"), ("studio", "Android Studio")]),
+            t("jetbrains", "apps", "JetBrains", tr("Caches des éditeurs JetBrains (index recalculés)", "JetBrains editor caches (indexes rebuilt)"),
+              under(&caches, &["JetBrains"]), Duration::ZERO,
+              &[("idea", "IntelliJ IDEA"), ("webstorm", "WebStorm"), ("pycharm", "PyCharm"), ("phpstorm", "PhpStorm"), ("studio", "Android Studio"), ("goland", "GoLand"), ("clion", "CLion"), ("rider", "Rider")]),
+            t("zoom", "apps", "Zoom", tr("Cache de l'appli (pas tes réunions ni tes discussions)", "App cache (not your meetings or chats)"),
+              under(&caches, &["us.zoom.xos"]), Duration::ZERO, &[("zoom.us", "Zoom")]),
         ]
     }
 }
